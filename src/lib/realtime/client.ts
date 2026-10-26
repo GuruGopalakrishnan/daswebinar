@@ -1,60 +1,20 @@
-import { io, type Socket } from "socket.io-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  C2S,
-  type Ack,
-  type ClientToServerEvents,
-  type ServerToClientEvents,
-} from "../../../server/socket/protocol";
-import { env } from "@/lib/env";
-
-export type RealtimeSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
-
-const HEARTBEAT_MS = 25_000;
+import type { Ack } from "./protocol";
 
 /**
- * Connects to the realtime server with the current Supabase access token.
- * The token is re-read on every (re)connect and pushed to the server when
- * Supabase refreshes it, so long sessions don't get dropped.
+ * Calls a live-room database function and maps its errors to Ack. Room
+ * functions raise `message = code` (e.g. slow_mode) and `detail = text for
+ * the user`; anything else becomes a generic error.
  */
-export function connectRealtime(supabase: SupabaseClient) {
-  const socket: RealtimeSocket = io(env.socketUrl, {
-    autoConnect: false,
-    transports: ["websocket"],
-    auth: (cb) => {
-      supabase.auth.getSession().then(({ data }) => cb({ token: data.session?.access_token ?? "" }));
-    },
-  });
-
-  const { data: auth } = supabase.auth.onAuthStateChange((event, session) => {
-    if (event === "TOKEN_REFRESHED" && session && socket.connected) {
-      socket.emit(C2S.REFRESH_TOKEN, { token: session.access_token }, () => {});
-    }
-    if (event === "SIGNED_OUT") socket.disconnect();
-  });
-
-  const heartbeat = setInterval(() => {
-    if (socket.connected) socket.emit(C2S.HEARTBEAT, {}, () => {});
-  }, HEARTBEAT_MS);
-
-  socket.connect();
-
-  return {
-    socket,
-    close() {
-      clearInterval(heartbeat);
-      auth.subscription.unsubscribe();
-      socket.disconnect();
-    },
-  };
-}
-
-/** Promise wrapper for ack-style emits. */
-export function request<T>(
-  socket: RealtimeSocket,
-  event: keyof ClientToServerEvents,
-  payload: unknown,
-  timeoutMs = 5000,
+export async function roomRpc<T>(
+  supabase: SupabaseClient,
+  fn: string,
+  args: Record<string, unknown>,
 ): Promise<Ack<T>> {
-  return (socket as unknown as Socket).timeout(timeoutMs).emitWithAck(event, payload);
+  const { data, error } = await supabase.rpc(fn, args);
+  if (!error) return { ok: true, data: data as T };
+  if (error.details && /^[a-z_]+$/.test(error.message)) {
+    return { ok: false, error: { code: error.message, message: error.details } };
+  }
+  return { ok: false, error: { code: "internal_error", message: "Couldn't reach the room. Try again." } };
 }

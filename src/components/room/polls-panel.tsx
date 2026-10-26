@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { Author, Poll } from "../../../server/socket/protocol";
+import type { Author, Poll } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
 
 export function PollsPanel({ polls, me, actions }: { polls: Poll[]; me: Author | null; actions: RoomActions }) {

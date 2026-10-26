@@ -11,7 +11,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Settings } from "../../../server/socket/protocol";
+import type { Settings } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
 
 const TOGGLES: { key: keyof Omit<Settings, "slowModeSeconds">; label: string; body: string }[] = [

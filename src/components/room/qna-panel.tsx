@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
-import type { Author, Question, Settings } from "../../../server/socket/protocol";
+import type { Author, Question, Settings } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
 
 export function QnaPanel({

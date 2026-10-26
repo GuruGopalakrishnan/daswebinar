@@ -1,6 +1,6 @@
 # webinar-clone
 
-A webinar platform built with Next.js 16 (App Router), Supabase, Socket.IO and Agora.
+A webinar platform built with Next.js 16 (App Router), Supabase (incl. Realtime) and Agora.
 The architecture follows the patterns observed in the webinar.gg analysis. All code here is
 original.
 
@@ -10,7 +10,7 @@ original.
 |---|---|---|
 | 1 | Project structure, Supabase auth (password + magic link), protected dashboard | **Done** |
 | 2 | Webinar CRUD API (`/api/webinars`), schema + RLS, registration | **Done** (API only; dashboard UI pending) |
-| 3 | Socket.IO server: public chat, presence, Q&A, polls, hand raise, reactions, settings | **Done** (server + client helper; no UI yet) |
+| 3 | Realtime: public chat, presence, Q&A, polls, hand raise, reactions, settings | **Done** (Supabase Realtime; needs migration 4) |
 | UI | Landing, dashboard, create/edit wizard, manage page, registration, live room, replay player | **Done** (needs migration 3) |
 | 4 | Agora video: token minting, publish/subscribe, cloud recording | Planned |
 
@@ -92,69 +92,57 @@ and the Phase 4 lifecycle sets them.
 **Known gaps (to address before production):** guest registrations aren't email-verified,
 and there's no rate limiting. A script could fill a capped webinar with fake emails.
 
-## Realtime server (`server/socket`)
+## Live room (Supabase Realtime)
 
-A standalone Socket.IO process on port **3001**. Node 26 runs the TypeScript directly, with no build step.
+The room runs entirely on the Supabase project, so there's no separate server to deploy. The schema,
+functions and channel policies are in `supabase/migrations/20261026030000_realtime_room.sql`. The
+client is `src/components/room/use-room.ts`, and the shared types are in `src/lib/realtime/protocol.ts`.
 
-```bash
-npm run socket        # start (reads .env.local)
-npm run socket:dev    # restart on file changes
-npm run test:socket   # integration tests (stubbed auth, no Supabase needed)
-```
+**Channels.** Both are private, so Realtime checks RLS policies on `realtime.messages` when you join.
 
-Environment variables: `SOCKET_PORT` (default `PORT`, then 3001) and `SOCKET_CORS_ORIGINS`, a comma-separated
-list that defaults to `NEXT_PUBLIC_SITE_URL`. The client reads `NEXT_PUBLIC_SOCKET_URL`, which
-defaults to `http://localhost:3001`.
-
-### Deploying to Railway
-
-Vercel can't host long-lived WebSocket servers, so `server/socket` deploys on its own. It has its own
-`package.json`, lockfile and `railway.json`, and it imports nothing from outside its folder.
-
-1. Create a Railway service from this GitHub repo.
-2. In the service settings, set **Root Directory** to `/server/socket` and **Config file path** to
-   `/server/socket/railway.json`. The config path doesn't follow the root directory.
-3. Add these variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
-   `SOCKET_CORS_ORIGINS=https://<your-app>.vercel.app`. Railway sets `PORT`.
-4. Under Networking, generate a public domain. Set `NEXT_PUBLIC_SOCKET_URL=https://<that-domain>` on
-   Vercel and redeploy, because `NEXT_PUBLIC_*` values are inlined at build time.
-
-Keep it to one replica, because room state is in memory (see Limitations).
-
-**Auth.** The client sends its Supabase access token in the handshake, as `auth.token`. The server
-verifies it against the project's JWKS (ES256) and checks issuer, audience `authenticated`,
-expiry and `role=authenticated`. Anon/service keys and forged tokens are rejected. When the token
-expires, the socket receives `connection:session_expired` and is disconnected. The client helper
-pushes refreshed tokens via `connection:refresh_token` so long sessions stay up.
-
-**Room access** goes through the database's RLS, using the user's own token. The host gets the
-`host` role unless the webinar is cancelled. A signed-in user with an **approved** registration
-gets `attendee` while the webinar is `scheduled` or `live`. Guest (no-account) registrants can't
-join realtime.
-
-**Events.** Every client→server event takes an ack callback that receives `{ ok, data | error }`.
-The sender gets the ack; everyone else in the room gets the broadcast.
-
-| Client → server | Who | Server → others |
+| Topic | Who can receive | Who can send |
 |---|---|---|
-| `connection:join_webinar {webinarId}` → snapshot | host, attendee | `user_session:live_count` |
-| `public_chat:send_message {text, clientMessageId}` | all (host bypasses off/slow mode) | `public_chat:new_message` |
-| `user_session:heartbeat {}` → `{liveCount}` | all, every 25s | — |
-| `qna:submit_question {text}` | all | `qna:new_question` |
-| `qna:upvote_question {questionId}` (toggle, not your own) | all | `qna:question_updated` |
-| `poll:create_poll {question, options[2-6]}` | host | `poll:poll_created` |
-| `poll:vote {pollId, optionId}` (re-voting changes your vote) | all | `poll:results` |
-| `poll:close_poll {pollId}` | host | `poll:closed` |
-| `handraise:raise_hand {}` / `handraise:lower_hand {userId?}` | attendee / self or host | `handraise:queue_updated` |
-| `reaction:send_reaction {emoji}` (allowlist) | all | `reaction:reaction_received` |
-| `webinar_settings:update_settings {…}` | host | `webinar_settings:settings_updated` |
+| `room:<webinarId>` | host, attendees | Broadcast: **the database only**. Presence: host, attendees |
+| `room:<webinarId>:reactions` | host, attendees | host, attendees (client Broadcast) |
 
-All payloads are validated with strict zod schemas in `protocol.ts`, the file shared with the
-browser client. Every event has per-user rate limits.
+**Access** is decided by `webinar_role()`. The host gets `host` unless the webinar is cancelled. A
+signed-in user with an **approved** registration gets `attendee` while the webinar is `scheduled` or
+`live`. Guest (no-account) registrants can't join.
 
-**Limitations (by design for now):** room state lives in memory. Chat, Q&A and polls are lost on
-restart, and the server can't run as more than one instance without the Socket.IO Redis adapter
-and shared storage. Empty rooms keep their state for 30 minutes.
+**Writes go through the database.** Chat, Q&A, polls and settings are `security definer` functions,
+called with `supabase.rpc`. Each one checks access, room settings (chat/Q&A off, slow mode) and rate
+limits. It then stores the row, so people who join late get the history, and broadcasts the result with
+`realtime.send()`. Clients can't broadcast on the room topic, so they can't fake these events. Errors
+come back as `message = code` (e.g. `slow_mode`) and `details` = text to show the user.
+
+| Function | Who | Broadcast on `room:<id>` |
+|---|---|---|
+| `get_room_snapshot(webinar)` → settings, last 200 messages, questions, polls | host, attendee | — |
+| `send_room_message(webinar, text, clientMessageId)`: idempotent, 5 per 10s | all (host bypasses off/slow mode) | `public_chat:new_message` |
+| `ask_question(webinar, text)`: 3 per 30s | all | `qna:new_question` |
+| `toggle_question_upvote(question)`: not your own | all | `qna:question_updated` |
+| `create_poll(webinar, question, options[2-6])` | host | `poll:poll_created` |
+| `vote_poll(poll, option)`: voting again changes your vote | all | `poll:results` |
+| `close_poll(poll)` | host | `poll:closed` |
+| `update_room_settings(webinar, {…})`: saved on the webinar | host | `webinar_settings:settings_updated` |
+| `lower_room_hand(webinar, user)` | host | `handraise:lower_hand` |
+| `start_webinar` / `end_webinar` (trigger) | host | `webinar:status_changed` |
+
+**Presence** on the room topic, with the user ID as key so several tabs count once, gives the live count, the
+roster and the hand-raise queue. Each client tracks `{ userId, name, handRaisedAt }`. Realtime's own
+heartbeat drops clients that disappear. Roles in the roster come from the snapshot's `hostId`, not from
+the presence payload.
+
+**Reactions** are client Broadcasts on the `:reactions` topic. They're throttled on the sender and
+ignored by receivers while reactions are off (except the host's).
+
+**Reconnects.** Broadcasts aren't replayed, so the client fetches the snapshot again on every
+`SUBSCRIBED` and tracks Presence again. supabase-js passes refreshed access tokens to Realtime.
+
+**Limitations.** Votes, upvotes and reactions have no server-side rate limit. Presence names and hand
+raises come from the client, so a modified client could show a wrong display name or lower its own hand
+late. Access is checked when a channel is joined, so someone whose registration is revoked keeps receiving
+until they reconnect. They can't write, because every function checks access again.
 
 ## Auth notes
 

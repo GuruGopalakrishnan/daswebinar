@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
-import type { Author, Settings } from "../../../server/socket/protocol";
+import type { Author, Settings } from "@/lib/realtime/protocol";
 import type { LocalMessage, RoomActions } from "./use-room";
 
 const MAX = 500;

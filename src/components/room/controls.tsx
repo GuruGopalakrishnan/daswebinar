@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { REACTIONS, type Reaction } from "../../../server/socket/protocol";
+import { REACTIONS, type Reaction } from "@/lib/realtime/protocol";
 
 function ControlButton({
   label,

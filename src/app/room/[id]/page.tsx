@@ -51,8 +51,8 @@ async function RoomContent({ params }: Pick<PageProps<"/room/[id]">, "params">) 
   const webinar = await getPublicWebinar(id);
   if (!webinar) notFound();
 
-  // Check access up front for a friendly message; the realtime server
-  // enforces the same rule independently.
+  // Check access up front for a friendly message; the room's database
+  // functions and Realtime channel policies enforce the same rule independently.
   const registration = await getMyRegistration(id, user.id);
   const canJoin =
     registration?.status === "approved" && (webinar.status === "scheduled" || webinar.status === "live");

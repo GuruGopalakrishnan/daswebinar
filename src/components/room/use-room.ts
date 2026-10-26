@@ -1,23 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import { connectRealtime, request, type RealtimeSocket } from "@/lib/realtime/client";
+import { roomRpc } from "@/lib/realtime/client";
 import {
-  C2S,
-  S2C,
+  EVENTS,
+  REACTION_EVENT,
+  reactionsTopic,
+  roomTopic,
   type Ack,
   type Author,
   type BroadcastStatus,
   type ChatMessage,
   type HandRaise,
   type Poll,
+  type PresenceMeta,
   type Question,
   type Reaction,
+  type ReactionPayload,
   type Role,
   type Settings,
   type Snapshot,
-} from "../../../server/socket/protocol";
+} from "@/lib/realtime/protocol";
 
 export type ConnectionState = "connecting" | "joined" | "reconnecting" | "unauthorized" | "forbidden" | "error";
 
@@ -30,10 +35,13 @@ export type RoomState = {
   error: string | null;
   role: Role | null;
   me: Author | null;
+  hostId: string | null;
   settings: Settings | null;
   messages: LocalMessage[];
   questions: Question[];
   polls: Poll[];
+  /** One entry per user, from Presence. */
+  presence: PresenceMeta[];
   handRaises: HandRaise[];
   members: Author[];
   liveCount: number;
@@ -48,9 +56,7 @@ type Action =
   | { type: "message_failed"; clientMessageId: string }
   | { type: "question"; question: Question; mine?: boolean }
   | { type: "poll"; poll: Poll; mine?: boolean }
-  | { type: "handraises"; queue: HandRaise[] }
-  | { type: "live_count"; liveCount: number }
-  | { type: "roster"; members: Author[] }
+  | { type: "presence"; presence: PresenceMeta[] }
   | { type: "settings"; settings: Settings }
   | { type: "burst"; emoji: Reaction }
   | { type: "burst_done"; id: number }
@@ -61,16 +67,20 @@ const initialState: RoomState = {
   error: null,
   role: null,
   me: null,
+  hostId: null,
   settings: null,
   messages: [],
   questions: [],
   polls: [],
+  presence: [],
   handRaises: [],
   members: [],
   liveCount: 0,
   bursts: [],
   broadcastStatus: null,
 };
+
+const REACTION_LIMIT = { count: 10, windowMs: 5_000 };
 
 let burstSeq = 0;
 
@@ -80,6 +90,18 @@ function upsert<T extends { id: string }>(list: T[], item: T, merge?: (prev: T, 
   const copy = [...list];
   copy[i] = merge ? merge(copy[i]!, item) : item;
   return copy;
+}
+
+/** Roster, live count and hand-raise queue, derived from Presence. */
+function fromPresence(presence: PresenceMeta[], hostId: string | null) {
+  const members: Author[] = presence
+    .map((p) => ({ userId: p.userId, name: p.name, role: p.userId === hostId ? ("host" as const) : ("attendee" as const) }))
+    .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "host" ? -1 : 1));
+  const handRaises: HandRaise[] = presence
+    .filter((p): p is PresenceMeta & { handRaisedAt: string } => p.handRaisedAt !== null && p.userId !== hostId)
+    .map((p) => ({ userId: p.userId, name: p.name, raisedAt: p.handRaisedAt }))
+    .sort((a, b) => a.raisedAt.localeCompare(b.raisedAt));
+  return { members, handRaises, liveCount: members.length };
 }
 
 function reducer(state: RoomState, action: Action): RoomState {
@@ -96,13 +118,12 @@ function reducer(state: RoomState, action: Action): RoomState {
         error: null,
         role: s.role,
         me: s.me,
+        hostId: s.hostId,
         settings: s.settings,
         messages: [...s.messages, ...unconfirmed],
         questions: s.questions,
         polls: s.polls,
-        handRaises: s.handRaises,
-        members: s.members,
-        liveCount: s.liveCount,
+        ...fromPresence(state.presence, s.hostId),
       };
     }
     case "connection":
@@ -127,7 +148,7 @@ function reducer(state: RoomState, action: Action): RoomState {
         ),
       };
     case "question":
-      // Broadcasts carry upvotedByMe=false; keep our own flag unless this is our ack.
+      // Broadcasts carry upvotedByMe=false; keep our own flag unless this is our result.
       return {
         ...state,
         questions: upsert(state.questions, action.question, (prev, next) =>
@@ -139,12 +160,8 @@ function reducer(state: RoomState, action: Action): RoomState {
         ...state,
         polls: upsert(state.polls, action.poll, (prev, next) => (action.mine ? next : { ...next, myVote: prev.myVote })),
       };
-    case "handraises":
-      return { ...state, handRaises: action.queue };
-    case "live_count":
-      return { ...state, liveCount: action.liveCount };
-    case "roster":
-      return { ...state, members: action.members };
+    case "presence":
+      return { ...state, presence: action.presence, ...fromPresence(action.presence, state.hostId) };
     case "settings":
       return { ...state, settings: action.settings };
     case "burst":
@@ -156,146 +173,260 @@ function reducer(state: RoomState, action: Action): RoomState {
   }
 }
 
+/** `channel()` returns an existing channel for the same topic, so wait for an old one to go. */
+async function freshChannel(supabase: SupabaseClient, topic: string, config: Parameters<SupabaseClient["channel"]>[1]) {
+  const stale = supabase.getChannels().find((c) => c.topic === `realtime:${topic}`);
+  if (stale) await supabase.removeChannel(stale);
+  return supabase.channel(topic, config);
+}
+
+const fail = (code: string, message: string): Ack<never> => ({ ok: false, error: { code, message } });
+
 export type RoomActions = ReturnType<typeof useRoom>["actions"];
 
 export function useRoom(webinarId: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const socketRef = useRef<RealtimeSocket | null>(null);
-  const meRef = useRef<Author | null>(null);
+  const supabase = useMemo(() => createClient(), []);
+  const roomRef = useRef<RealtimeChannel | null>(null);
+  const reactionsRef = useRef<RealtimeChannel | null>(null);
+  const stateRef = useRef(state);
+  /** What we track in Presence; re-sent after every (re)join. */
+  const presenceRef = useRef<PresenceMeta | null>(null);
+  const reactionTimes = useRef<number[]>([]);
 
   useEffect(() => {
-    meRef.current = state.me;
-  }, [state.me]);
+    stateRef.current = state;
+  }, [state]);
+
+  const track = useCallback(async (patch: Partial<PresenceMeta>) => {
+    if (!presenceRef.current) return;
+    presenceRef.current = { ...presenceRef.current, ...patch };
+    await roomRef.current?.track(presenceRef.current);
+  }, []);
 
   useEffect(() => {
-    const supabase = createClient();
-    const { socket, close } = connectRealtime(supabase);
-    socketRef.current = socket;
+    let cancelled = false;
+    let channels: RealtimeChannel[] = [];
 
-    async function join() {
-      const res = await request<Snapshot>(socket, C2S.JOIN_WEBINAR, { webinarId }).catch(() => null);
-      if (!res) return dispatch({ type: "connection", connection: "error", error: "The room didn't respond. Retrying…" });
-      if (res.ok) dispatch({ type: "joined", snapshot: res.data });
-      else
+    async function join(room: RealtimeChannel) {
+      const res = await roomRpc<Snapshot>(supabase, "get_room_snapshot", { p_webinar_id: webinarId });
+      if (cancelled) return;
+      if (!res.ok) {
         dispatch({
           type: "connection",
           connection: res.error.code === "forbidden" ? "forbidden" : "error",
           error: res.error.message,
         });
+        return;
+      }
+      dispatch({ type: "joined", snapshot: res.data });
+      const { me, settings } = res.data;
+      presenceRef.current = {
+        userId: me.userId,
+        name: me.name,
+        // Keep a raised hand across reconnects, unless hand raising was turned off meanwhile.
+        handRaisedAt: settings.handRaiseEnabled ? (presenceRef.current?.handRaisedAt ?? null) : null,
+      };
+      await room.track(presenceRef.current);
     }
 
-    // Join on every (re)connect: a new socket has no room membership.
-    socket.on("connect", join);
-    socket.on("connect_error", (err) => {
-      dispatch({
-        type: "connection",
-        connection: err.message === "unauthorized" ? "unauthorized" : "reconnecting",
-        error: err.message === "unauthorized" ? "Your session has expired." : "Can't reach the room server. Retrying…",
+    async function start() {
+      const { data } = await supabase.auth.getSession();
+      const user = data.session?.user;
+      if (cancelled) return;
+      if (!user) {
+        dispatch({ type: "connection", connection: "unauthorized", error: "Your session has expired." });
+        return;
+      }
+      // Private channels authorize with the user's access token.
+      await supabase.realtime.setAuth();
+
+      const room = await freshChannel(supabase, roomTopic(webinarId), {
+        config: { private: true, presence: { key: user.id, enabled: true } },
       });
+      const reactions = await freshChannel(supabase, reactionsTopic(webinarId), {
+        config: { private: true, broadcast: { self: false } },
+      });
+      if (cancelled) {
+        void supabase.removeChannel(room);
+        void supabase.removeChannel(reactions);
+        return;
+      }
+      channels = [room, reactions];
+      roomRef.current = room;
+      reactionsRef.current = reactions;
+
+      room
+        .on("broadcast", { event: EVENTS.NEW_MESSAGE }, ({ payload }) => dispatch({ type: "message", message: payload as ChatMessage }))
+        .on("broadcast", { event: EVENTS.NEW_QUESTION }, ({ payload }) => dispatch({ type: "question", question: payload as Question }))
+        .on("broadcast", { event: EVENTS.QUESTION_UPDATED }, ({ payload }) => dispatch({ type: "question", question: payload as Question }))
+        .on("broadcast", { event: EVENTS.POLL_CREATED }, ({ payload }) => dispatch({ type: "poll", poll: payload as Poll }))
+        .on("broadcast", { event: EVENTS.POLL_RESULTS }, ({ payload }) => dispatch({ type: "poll", poll: payload as Poll }))
+        .on("broadcast", { event: EVENTS.POLL_CLOSED }, ({ payload }) => dispatch({ type: "poll", poll: payload as Poll }))
+        .on("broadcast", { event: EVENTS.STATUS_CHANGED }, ({ payload }) =>
+          dispatch({ type: "status", status: (payload as { status: BroadcastStatus }).status }),
+        )
+        .on("broadcast", { event: EVENTS.SETTINGS_UPDATED }, ({ payload }) => {
+          const settings = payload as Settings;
+          dispatch({ type: "settings", settings });
+          if (!settings.handRaiseEnabled && presenceRef.current?.handRaisedAt) void track({ handRaisedAt: null });
+        })
+        .on("broadcast", { event: EVENTS.LOWER_HAND }, ({ payload }) => {
+          if ((payload as { userId: string }).userId === presenceRef.current?.userId) void track({ handRaisedAt: null });
+        })
+        .on("presence", { event: "sync" }, () => {
+          // Several tabs share one key (the user id), so each user counts once.
+          const presence = Object.values(room.presenceState<PresenceMeta>())
+            .map((metas) => metas[0])
+            .filter((m): m is NonNullable<typeof m> => m !== undefined)
+            .map(({ userId, name, handRaisedAt }) => ({ userId, name, handRaisedAt }));
+          dispatch({ type: "presence", presence });
+        })
+        .subscribe((status, err) => {
+          if (cancelled) return;
+          // Re-fetch on every (re)subscribe: broadcasts sent while we were away are gone.
+          if (status === "SUBSCRIBED") void join(room);
+          else if (status === "CHANNEL_ERROR" && err && /unauthori[sz]ed|permission|expired/i.test(err.message)) {
+            const expired = /expired/i.test(err.message);
+            dispatch({
+              type: "connection",
+              connection: expired ? "unauthorized" : "forbidden",
+              error: expired ? "Your session has expired." : "You don't have access to this webinar.",
+            });
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            dispatch({ type: "connection", connection: "reconnecting", error: "Can't reach the room. Retrying…" });
+          }
+        });
+
+      reactions
+        .on("broadcast", { event: REACTION_EVENT }, ({ payload }) => {
+          const { emoji, userId } = payload as ReactionPayload;
+          const { settings, hostId } = stateRef.current;
+          // Clients enforce the setting on receive; only the host may react while it's off.
+          if (settings && !settings.reactionsEnabled && userId !== hostId) return;
+          dispatch({ type: "burst", emoji });
+        })
+        .subscribe();
+    }
+
+    const { data: auth } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        dispatch({ type: "connection", connection: "unauthorized", error: "Your session has expired." });
+        for (const channel of channels) void supabase.removeChannel(channel);
+      }
     });
-    socket.on("disconnect", (reason) => {
-      if (reason !== "io client disconnect") dispatch({ type: "connection", connection: "reconnecting" });
-    });
-    socket.on(S2C.SESSION_EXPIRED, () =>
-      dispatch({ type: "connection", connection: "unauthorized", error: "Your session has expired." }),
-    );
-    socket.on(S2C.NEW_MESSAGE, (message) => dispatch({ type: "message", message }));
-    socket.on(S2C.NEW_QUESTION, (question) => dispatch({ type: "question", question }));
-    socket.on(S2C.QUESTION_UPDATED, (question) => dispatch({ type: "question", question }));
-    socket.on(S2C.POLL_CREATED, (poll) => dispatch({ type: "poll", poll }));
-    socket.on(S2C.POLL_RESULTS, (poll) => dispatch({ type: "poll", poll }));
-    socket.on(S2C.POLL_CLOSED, (poll) => dispatch({ type: "poll", poll }));
-    socket.on(S2C.HANDRAISE_QUEUE, (queue) => dispatch({ type: "handraises", queue }));
-    socket.on(S2C.LIVE_COUNT, ({ liveCount }) => dispatch({ type: "live_count", liveCount }));
-    socket.on(S2C.ROSTER, (members) => dispatch({ type: "roster", members }));
-    socket.on(S2C.SETTINGS_UPDATED, (settings) => dispatch({ type: "settings", settings }));
-    socket.on(S2C.REACTION_RECEIVED, ({ emoji }) => dispatch({ type: "burst", emoji }));
-    socket.on(S2C.STATUS_CHANGED, ({ status }) => dispatch({ type: "status", status }));
+
+    void start();
 
     return () => {
-      close();
-      socketRef.current = null;
+      cancelled = true;
+      auth.subscription.unsubscribe();
+      for (const channel of channels) void supabase.removeChannel(channel);
+      roomRef.current = null;
+      reactionsRef.current = null;
     };
-  }, [webinarId]);
-
-  const call = useCallback(async <T,>(event: Parameters<typeof request>[1], payload: unknown): Promise<Ack<T>> => {
-    const socket = socketRef.current;
-    if (!socket?.connected) return { ok: false, error: { code: "offline", message: "You're offline. Reconnecting…" } };
-    try {
-      return await request<T>(socket, event, payload);
-    } catch {
-      return { ok: false, error: { code: "timeout", message: "The room didn't respond. Try again." } };
-    }
-  }, []);
+  }, [supabase, webinarId, track]);
 
   const actions = useMemo(
     () => ({
-      async sendMessage(text: string, clientMessageId = crypto.randomUUID()) {
-        const me = meRef.current;
+      async sendMessage(text: string, clientMessageId: string = crypto.randomUUID()) {
+        const me = stateRef.current.me;
         if (me) {
           dispatch({
             type: "message",
             message: { id: `local-${clientMessageId}`, clientMessageId, author: me, text, sentAt: new Date().toISOString(), pending: true },
           });
         }
-        const res = await call<ChatMessage>(C2S.SEND_MESSAGE, { text, clientMessageId });
+        const res = await roomRpc<ChatMessage>(supabase, "send_room_message", {
+          p_webinar_id: webinarId,
+          p_text: text,
+          p_client_message_id: clientMessageId,
+        });
         if (res.ok) dispatch({ type: "message", message: res.data });
         else dispatch({ type: "message_failed", clientMessageId });
         return res;
       },
       async ask(text: string) {
-        const res = await call<Question>(C2S.SUBMIT_QUESTION, { text });
+        const res = await roomRpc<Question>(supabase, "ask_question", { p_webinar_id: webinarId, p_text: text });
         if (res.ok) dispatch({ type: "question", question: res.data, mine: true });
         return res;
       },
       async upvote(questionId: string) {
-        const res = await call<Question>(C2S.UPVOTE_QUESTION, { questionId });
+        const res = await roomRpc<Question>(supabase, "toggle_question_upvote", { p_question_id: questionId });
         if (res.ok) dispatch({ type: "question", question: res.data, mine: true });
         return res;
       },
       async createPoll(question: string, options: string[]) {
-        const res = await call<Poll>(C2S.CREATE_POLL, { question, options });
+        const res = await roomRpc<Poll>(supabase, "create_poll", {
+          p_webinar_id: webinarId,
+          p_question: question,
+          p_options: options,
+        });
         if (res.ok) dispatch({ type: "poll", poll: res.data, mine: true });
         return res;
       },
       async vote(pollId: string, optionId: string) {
-        const res = await call<Poll>(C2S.VOTE, { pollId, optionId });
+        const res = await roomRpc<Poll>(supabase, "vote_poll", { p_poll_id: pollId, p_option_id: optionId });
         if (res.ok) dispatch({ type: "poll", poll: res.data, mine: true });
         return res;
       },
       async closePoll(pollId: string) {
-        const res = await call<Poll>(C2S.CLOSE_POLL, { pollId });
+        const res = await roomRpc<Poll>(supabase, "close_poll", { p_poll_id: pollId });
         if (res.ok) dispatch({ type: "poll", poll: res.data, mine: true });
         return res;
       },
-      async raiseHand() {
-        const res = await call<HandRaise[]>(C2S.RAISE_HAND, {});
-        if (res.ok) dispatch({ type: "handraises", queue: res.data });
-        return res;
+      async raiseHand(): Promise<Ack<null>> {
+        const { role, settings } = stateRef.current;
+        if (role === "host") return fail("forbidden", "Hosts don't raise hands.");
+        if (!settings?.handRaiseEnabled) return fail("handraise_disabled", "Hand raising is turned off.");
+        if (!presenceRef.current) return fail("offline", "You're offline. Reconnecting…");
+        if (!presenceRef.current.handRaisedAt) await track({ handRaisedAt: new Date().toISOString() });
+        return { ok: true, data: null };
       },
-      async lowerHand(userId?: string) {
-        const res = await call<HandRaise[]>(C2S.LOWER_HAND, userId ? { userId } : {});
-        if (res.ok) dispatch({ type: "handraises", queue: res.data });
-        return res;
+      /** Lowers your own hand, or (host only) someone else's. */
+      async lowerHand(userId?: string): Promise<Ack<null>> {
+        if (!userId || userId === presenceRef.current?.userId) {
+          await track({ handRaisedAt: null });
+          return { ok: true, data: null };
+        }
+        return roomRpc<null>(supabase, "lower_room_hand", { p_webinar_id: webinarId, p_user_id: userId });
       },
-      async react(emoji: Reaction) {
+      async react(emoji: Reaction): Promise<Ack<null>> {
+        const { role, settings, me } = stateRef.current;
+        if (settings && !settings.reactionsEnabled && role !== "host") {
+          return fail("reactions_disabled", "Reactions are turned off.");
+        }
+        const now = Date.now();
+        const recent = reactionTimes.current.filter((t) => now - t < REACTION_LIMIT.windowMs);
+        if (recent.length >= REACTION_LIMIT.count) return fail("rate_limited", "Slow down.");
+        reactionTimes.current = [...recent, now];
+
         dispatch({ type: "burst", emoji });
-        return call<null>(C2S.SEND_REACTION, { emoji });
+        const status = await reactionsRef.current?.send({
+          type: "broadcast",
+          event: REACTION_EVENT,
+          payload: { emoji, userId: me?.userId ?? "" } satisfies ReactionPayload,
+        });
+        return status === "ok" ? { ok: true, data: null } : fail("offline", "You're offline. Reconnecting…");
       },
       async updateSettings(patch: Partial<Settings>) {
-        const res = await call<Settings>(C2S.UPDATE_SETTINGS, patch);
+        const res = await roomRpc<Settings>(supabase, "update_room_settings", { p_webinar_id: webinarId, p_settings: patch });
         if (res.ok) dispatch({ type: "settings", settings: res.data });
         return res;
       },
-      announce(status: BroadcastStatus) {
+      /**
+       * Updates the host's view right away. Everyone else hears about it from
+       * the database, which broadcasts status changes made by start/end.
+       */
+      async announce(status: BroadcastStatus): Promise<Ack<null>> {
         dispatch({ type: "status", status });
-        return call<null>(C2S.ANNOUNCE_STATUS, { status });
+        return { ok: true, data: null };
       },
       burstDone(id: number) {
         dispatch({ type: "burst_done", id });
       },
     }),
-    [call],
+    [supabase, webinarId, track],
   );
 
   return { state, actions };

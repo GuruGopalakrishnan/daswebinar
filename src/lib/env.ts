@@ -14,6 +14,4 @@ export const env = {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   ),
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  // Realtime server (server/socket); in production, the Railway service URL.
-  socketUrl: process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3001",
 };

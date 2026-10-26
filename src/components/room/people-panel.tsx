@@ -5,7 +5,7 @@ import { Hand } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
-import type { Author, HandRaise } from "../../../server/socket/protocol";
+import type { Author, HandRaise } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
 
 export function PeoplePanel({
