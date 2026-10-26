@@ -102,9 +102,24 @@ npm run socket:dev    # restart on file changes
 npm run test:socket   # integration tests (stubbed auth, no Supabase needed)
 ```
 
-Environment variables: `SOCKET_PORT` (default 3001) and `SOCKET_CORS_ORIGINS`, a comma-separated
+Environment variables: `SOCKET_PORT` (default `PORT`, then 3001) and `SOCKET_CORS_ORIGINS`, a comma-separated
 list that defaults to `NEXT_PUBLIC_SITE_URL`. The client reads `NEXT_PUBLIC_SOCKET_URL`, which
 defaults to `http://localhost:3001`.
+
+### Deploying to Railway
+
+Vercel can't host long-lived WebSocket servers, so `server/socket` deploys on its own. It has its own
+`package.json`, lockfile and `railway.json`, and it imports nothing from outside its folder.
+
+1. Create a Railway service from this GitHub repo.
+2. In the service settings, set **Root Directory** to `/server/socket` and **Config file path** to
+   `/server/socket/railway.json`. The config path doesn't follow the root directory.
+3. Add these variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+   `SOCKET_CORS_ORIGINS=https://<your-app>.vercel.app`. Railway sets `PORT`.
+4. Under Networking, generate a public domain. Set `NEXT_PUBLIC_SOCKET_URL=https://<that-domain>` on
+   Vercel and redeploy, because `NEXT_PUBLIC_*` values are inlined at build time.
+
+Keep it to one replica, because room state is in memory (see Limitations).
 
 **Auth.** The client sends its Supabase access token in the handshake, as `auth.token`. The server
 verifies it against the project's JWKS (ES256) and checks issuer, audience `authenticated`,

@@ -6,10 +6,10 @@ import {
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from "../../../server/socket/protocol";
+import { env } from "@/lib/env";
 
 export type RealtimeSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3001";
 const HEARTBEAT_MS = 25_000;
 
 /**
@@ -18,7 +18,7 @@ const HEARTBEAT_MS = 25_000;
  * Supabase refreshes it, so long sessions don't get dropped.
  */
 export function connectRealtime(supabase: SupabaseClient) {
-  const socket: RealtimeSocket = io(SOCKET_URL, {
+  const socket: RealtimeSocket = io(env.socketUrl, {
     autoConnect: false,
     transports: ["websocket"],
     auth: (cb) => {

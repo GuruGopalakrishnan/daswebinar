@@ -17,7 +17,8 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(1);
 }
 
-const port = Number(process.env.SOCKET_PORT ?? 3001);
+// Railway (and most hosts) assign the port via PORT.
+const port = Number(process.env.SOCKET_PORT ?? process.env.PORT ?? 3001);
 const corsOrigin = (process.env.SOCKET_CORS_ORIGINS ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000")
   .split(",")
   .map((origin) => origin.trim());

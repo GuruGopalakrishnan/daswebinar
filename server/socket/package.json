@@ -1,4 +1,25 @@
 {
+  "name": "webinar-socket",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node index.ts",
+    "dev": "node --watch index.ts",
+    "test": "node --test --test-timeout=15000 \"**/*.test.ts\"",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "jose": "^6.2.13",
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "socket.io-client": "^4.8.4",
+    "typescript": "^5"
+  }
 }
