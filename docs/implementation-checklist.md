@@ -90,3 +90,12 @@ Priorities: **P0** before charging customers · **P1** what makes it premium and
 - [ ] Room on phones: switching mic/camera mid-session (device menus are desktop-only; phones pick devices on the pre-join screen)
 - [ ] Dark-mode pass on the dashboard and registration page (tokens exist; not reviewed screen by screen)
 - [ ] Webinar manage page, billing page and creation wizard: visual pass with the new components
+
+### Phase 4: plans and enforcement (2026-10-27)
+- [x] Verified the existing database enforcement end to end (16 checks: Free limits, Pro unlimited, 1-day grace, expiry and halted → Free) plus a 5-request race on webinar creation
+- [x] `/pricing` (public) and `/upgrade` (checkout only when Razorpay is configured)
+- [x] Upgrade modal on `402` from create / go live; upgrade card on New webinar at the limit
+- [x] Host seat notice at 80 and 100 of 100 on the manage page; capacity shows the effective limit
+- [x] Plan feature lists made honest (Pro listed features Free also has)
+- [x] Fixed the pre-join device picker's controlled/uncontrolled warning
+- [ ] Razorpay keys + plan id + webhook (Phase 5); the checkout code already exists

@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { UpgradeDialog, type UpgradeReason } from "@/components/billing/upgrade-dialog";
 import { useNow } from "@/hooks/use-client-values";
 import { formatClock } from "@/lib/format";
 import { REACTIONS } from "@/lib/realtime/protocol";
@@ -72,6 +73,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
   const [busy, setBusy] = useState<null | "live" | "end">(null);
 
   // Attendees learn about lifecycle changes from the room's realtime broadcast.
@@ -168,7 +170,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         if (json?.error?.code === "plan_webinar_limit") {
-          toast.error(json.error.message, { action: { label: "Upgrade", onClick: () => router.push("/dashboard/billing") } });
+          setUpgradeReason("live");
         } else {
           toast.error(json?.error?.message ?? "Something went wrong.");
         }
@@ -393,6 +395,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
 
       {isHost && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={state.settings} actions={actions} />}
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} isHost={isHost} />
+      {isHost && <UpgradeDialog reason={upgradeReason} onOpenChange={(open) => !open && setUpgradeReason(null)} />}
 
       <AlertDialog open={confirmEnd} onOpenChange={setConfirmEnd}>
         <AlertDialogContent>

@@ -2,11 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/room", "/recordings"];
+const PROTECTED_PREFIXES = ["/dashboard", "/room", "/recordings", "/upgrade"];
 /** Guest (anonymous) sessions only reach attendee pages; these need a real account. */
-const ACCOUNT_PREFIXES = ["/dashboard"];
+const ACCOUNT_PREFIXES = ["/dashboard", "/upgrade"];
 const AUTH_PAGES = ["/login", "/signup"];
-const PUBLIC_PATHS = ["/"];
+const PUBLIC_PATHS = ["/", "/pricing"];
 
 /**
  * Refreshes the Supabase session cookie on every matched request and applies
@@ -62,7 +62,7 @@ export async function updateSession(request: NextRequest) {
     const next = params.get("next");
     const target =
       params.get("plan") === "pro"
-        ? "/dashboard/billing?checkout=1"
+        ? "/upgrade?checkout=1"
         : next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
           ? next
           : "/dashboard";

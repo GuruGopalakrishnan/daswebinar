@@ -6,7 +6,7 @@ import { MobileNav } from "./mobile-nav";
 export const NAV = [
   { href: "/#benefits", label: "Why hosts switch" },
   { href: "/#how-it-works", label: "How it works" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/#faq", label: "FAQ" },
 ];
 

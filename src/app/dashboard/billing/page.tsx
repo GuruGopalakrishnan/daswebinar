@@ -1,8 +1,9 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import type { Metadata } from "next";
-import { Check, CircleCheck } from "lucide-react";
+import { Check, CircleCheck, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UpgradeButton } from "@/components/billing/upgrade-button";
+import { Button } from "@/components/ui/button";
 import { CancelSubscriptionButton } from "@/components/billing/cancel-button";
 import { requireUser } from "@/lib/auth";
 import { getMyPlan } from "@/lib/billing/server";
@@ -27,7 +28,7 @@ async function BillingContent({ searchParams }: Pick<PageProps<"/dashboard/billi
   await requireUser("/dashboard/billing");
   const [plan, params] = await Promise.all([getMyPlan(), searchParams]);
   const isPro = plan.plan === "pro";
-  const autoStart = !isPro && params.checkout === "1";
+
   const periodEnd = plan.currentPeriodEnd
     ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" }).format(new Date(plan.currentPeriodEnd))
     : null;
@@ -63,7 +64,11 @@ async function BillingContent({ searchParams }: Pick<PageProps<"/dashboard/billi
           {isPro ? (
             !plan.cancelAtPeriodEnd && periodEnd && <CancelSubscriptionButton periodEndLabel={periodEnd} />
           ) : (
-            <UpgradeButton autoStart={autoStart} />
+            <Button asChild>
+              <Link href="/upgrade">
+                <Sparkles /> Upgrade to Pro · {formatInr(PLANS.pro.price)}/mo
+              </Link>
+            </Button>
           )}
         </div>
 

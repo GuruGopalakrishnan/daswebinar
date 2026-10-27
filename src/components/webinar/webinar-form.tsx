@@ -32,6 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UpgradeDialog, type UpgradeReason } from "@/components/billing/upgrade-dialog";
 import { useMounted } from "@/hooks/use-client-values";
 import { cn } from "@/lib/utils";
 import { allTimeZones, browserTimeZone, utcToZoned, zoneOffsetLabel, zonedToUtcIso } from "@/lib/time";
@@ -174,6 +175,7 @@ function WebinarFormSteps({ webinar }: { webinar?: WebinarDto }) {
   const [direction, setDirection] = useState(1);
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState<null | "draft" | "scheduled">(null);
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setState((s) => ({ ...s, [key]: value }));
@@ -236,9 +238,7 @@ function WebinarFormSteps({ webinar }: { webinar?: WebinarDto }) {
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         if (json?.error?.code === "plan_webinar_limit") {
-          toast.error(json.error.message, {
-            action: { label: "Upgrade", onClick: () => router.push("/dashboard/billing") },
-          });
+          setUpgradeReason("webinars");
           return;
         }
         toast.error(json?.error?.message ?? "Something went wrong. Please try again.");
@@ -260,6 +260,7 @@ function WebinarFormSteps({ webinar }: { webinar?: WebinarDto }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
+      <UpgradeDialog reason={upgradeReason} onOpenChange={(open) => !open && setUpgradeReason(null)} />
       {/* Step rail */}
       <nav aria-label="Steps" className="lg:sticky lg:top-20 lg:self-start">
         <ol className="flex gap-1 overflow-x-auto lg:flex-col scrollbar-thin">

@@ -20,12 +20,15 @@ export const PLANS = {
     name: "Free",
     price: 0,
     tagline: "Run your first webinar and see the difference.",
+    // Every feature is on Free; the plans differ only in the limits below.
+    // Keep these lists honest: never list a feature under Pro that Free also has.
     features: [
       "1 webinar",
       `Up to ${FREE_ATTENDEE_LIMIT} attendees`,
       "HD video, screen sharing and audio",
       "Live chat, Q&A, polls and reactions",
-      "Registration page with custom questions",
+      "Registration page, reminders and join links",
+      "Record to your computer",
     ],
   },
   pro: {
@@ -34,12 +37,10 @@ export const PLANS = {
     price: PRO_PRICE_INR,
     tagline: "For coaches and creators who host every week.",
     features: [
+      "Everything in Free",
       "Unlimited webinars",
-      "Unlimited attendees",
-      "Record sessions to your computer",
-      "Spotlight questions on stage",
-      "Approval workflows and CSV export",
-      "Priority support",
+      "Unlimited attendees per webinar",
+      "Run as many live sessions as you like",
     ],
   },
 } as const satisfies Record<PlanId, { id: PlanId; name: string; price: number; tagline: string; features: readonly string[] }>;

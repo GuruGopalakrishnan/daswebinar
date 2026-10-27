@@ -71,7 +71,7 @@ function DeviceSelect({
   return (
     <label className="grid gap-1.5 text-xs text-white/60">
       {label}
-      <Select value={value ?? undefined} onValueChange={onChange}>
+      <Select value={value ?? ""} onValueChange={onChange}>
         <SelectTrigger className="w-full border-white/10 bg-white/5 text-white">
           <SelectValue placeholder="System default" />
         </SelectTrigger>

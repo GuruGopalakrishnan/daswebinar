@@ -3,7 +3,7 @@ import { Logo } from "@/components/brand/logo";
 import { BRAND } from "@/lib/brand";
 
 const COLUMNS = [
-  { title: "Product", links: [["Why hosts switch", "/#benefits"], ["Pricing", "/#pricing"], ["FAQ", "/#faq"]] },
+  { title: "Product", links: [["Why hosts switch", "/#benefits"], ["Pricing", "/pricing"], ["FAQ", "/#faq"]] },
   { title: "Account", links: [["Start free", "/signup"], ["Log in", "/login"], ["Dashboard", "/dashboard"]] },
 ] as const;
 

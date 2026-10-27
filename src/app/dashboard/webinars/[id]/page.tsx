@@ -12,6 +12,7 @@ import {
   Pencil,
   PlayCircle,
   ShieldCheck,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ import { GoLiveButton } from "@/components/webinar/go-live-button";
 import { RegistrationsTable } from "@/components/webinar/registrations-table";
 import { AddRecordingDialog } from "@/components/webinar/add-recording-dialog";
 import { requireUser } from "@/lib/auth";
+import { getMyPlan } from "@/lib/billing/server";
+import { FREE_ATTENDEE_LIMIT } from "@/lib/billing/plans";
 import { formatClock, formatDate, formatDuration, formatTime } from "@/lib/format";
 import { getHostWebinar, isUuid, listRecordings, listRegistrations } from "@/lib/webinars/queries";
 
@@ -49,11 +52,23 @@ async function ManageContent({ params }: Pick<PageProps<"/dashboard/webinars/[id
 
   const webinar = await getHostWebinar(id);
   if (!webinar) notFound();
-  const [registrations, recordings] = await Promise.all([listRegistrations(id), listRecordings(id)]);
+  const [registrations, recordings, plan] = await Promise.all([listRegistrations(id), listRecordings(id), getMyPlan()]);
 
   const approved = registrations.filter((r) => r.status === "approved").length;
   const pending = registrations.filter((r) => r.status === "pending").length;
   const seatsTaken = approved + pending;
+  // Warn only when the Free plan is what caps this webinar, not a smaller capacity the host chose.
+  const planCapped = plan.plan === "free" && (webinar.capacity === null || webinar.capacity > FREE_ATTENDEE_LIMIT);
+  // What actually limits registrations: the host's capacity, capped by the plan (mirrors webinar_attendee_limit()).
+  const seatLimit = planCapped ? FREE_ATTENDEE_LIMIT : webinar.capacity;
+  const capState =
+    !planCapped || webinar.status === "ended" || webinar.status === "cancelled"
+      ? null
+      : seatsTaken >= FREE_ATTENDEE_LIMIT
+        ? "full"
+        : seatsTaken >= FREE_ATTENDEE_LIMIT * 0.8
+          ? "near"
+          : null;
   const registerPath = `/register/${webinar.id}`;
 
   return (
@@ -94,6 +109,35 @@ async function ManageContent({ params }: Pick<PageProps<"/dashboard/webinars/[id
         </div>
       )}
 
+      {capState && (
+        <div
+          role="status"
+          className={`flex flex-col gap-3 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-center ${capState === "full" ? "border-live/30 bg-live/10" : "border-warning/30 bg-warning/10"}`}
+        >
+          <Users className={`size-4 shrink-0 ${capState === "full" ? "text-live" : "text-warning"}`} />
+          <p className="flex-1">
+            {capState === "full" ? (
+              <>
+                <strong className="font-medium">Registration is closed:</strong> this webinar has reached the Free plan&apos;s{" "}
+                {FREE_ATTENDEE_LIMIT}-attendee limit. New visitors see that it&apos;s full.
+              </>
+            ) : (
+              <>
+                <strong className="font-medium tabular-nums">
+                  {seatsTaken} of {FREE_ATTENDEE_LIMIT}
+                </strong>{" "}
+                free seats taken. Registration closes at {FREE_ATTENDEE_LIMIT} on the Free plan.
+              </>
+            )}
+          </p>
+          <Button asChild size="sm" variant={capState === "full" ? "default" : "outline"}>
+            <Link href="/upgrade">
+              <Sparkles /> {capState === "full" ? "Upgrade to reopen" : "Remove the limit"}
+            </Link>
+          </Button>
+        </div>
+      )}
+
       <Tabs defaultValue={pending > 0 ? "registrations" : "overview"}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -113,9 +157,9 @@ async function ManageContent({ params }: Pick<PageProps<"/dashboard/webinars/[id
             <div className="rounded-xl border bg-card p-4">
               <p className="text-sm text-muted-foreground">Capacity</p>
               <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">
-                {webinar.capacity ? `${Math.round((seatsTaken / webinar.capacity) * 100)}%` : "∞"}
+                {seatLimit ? `${Math.round((seatsTaken / seatLimit) * 100)}%` : "∞"}
               </p>
-              {webinar.capacity && <Progress value={Math.min(100, (seatsTaken / webinar.capacity) * 100)} className="mt-3 h-1.5" />}
+              {seatLimit && <Progress value={Math.min(100, (seatsTaken / seatLimit) * 100)} className="mt-3 h-1.5" />}
             </div>
           </div>
 
@@ -149,7 +193,7 @@ async function ManageContent({ params }: Pick<PageProps<"/dashboard/webinars/[id
               <dl className="mt-3 grid gap-2.5 text-sm">
                 <Row icon={webinar.visibility === "public" ? Globe : Lock} label="Visibility" value={webinar.visibility === "public" ? "Public" : "Unlisted"} />
                 <Row icon={ShieldCheck} label="Approval" value={webinar.requiresApproval ? "Required" : "Automatic"} />
-                <Row icon={Users} label="Capacity" value={webinar.capacity ? webinar.capacity.toLocaleString() : "Unlimited"} />
+                <Row icon={Users} label="Capacity" value={seatLimit ? `${seatLimit.toLocaleString()}${planCapped ? " (Free plan)" : ""}` : "Unlimited"} />
                 <Row icon={Globe} label="Time zone" value={webinar.timezone.replaceAll("_", " ")} />
               </dl>
             </section>

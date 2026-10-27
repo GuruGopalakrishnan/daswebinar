@@ -34,8 +34,23 @@ is covered:
 - `register_for_webinar()` and a trigger on `registrations` cap attendees at `webinar_attendee_limit()`
 - `user_plan()` is `pro` while the Razorpay subscription is authenticated/active/pending (or cancelled but paid up), plus one day of grace
 
-The API returns `402 plan_webinar_limit`, and the UI shows an **Upgrade** action. Prices shown in the UI come from
-`src/lib/billing/plans.ts`. The amount actually charged comes from the Razorpay plan.
+The API returns `402 plan_webinar_limit` (create / go live) or `409 webinar_full` (register). Prices shown in the UI
+come from `src/lib/billing/plans.ts`. The amount actually charged comes from the Razorpay plan. Both plans have every
+feature; they differ only in limits, so never list a Free feature as a Pro extra.
+
+**Upgrade flow (UI on top of the database rules):**
+
+| Where | What the host sees |
+|---|---|
+| `/pricing` | Public plan comparison and FAQ. "Go Pro" → sign up → `/upgrade?checkout=1` |
+| `/upgrade` | Usage, Free vs Pro table, and Razorpay checkout. Checkout appears only when `RAZORPAY_*` keys are set; otherwise an "opening soon" note, never a dead button |
+| New webinar | A Free host at the limit sees an upgrade card instead of the wizard |
+| Create / Go live | A `402` opens the upgrade modal (`src/components/billing/upgrade-dialog.tsx`) |
+| Manage page | Notice from 80 of 100 seats; "Registration is closed" at 100. Shown only when the plan, not the host's own capacity, is the cap |
+| Dashboard | Free plan card and "Upgrade" link to `/upgrade` |
+
+Downgrade needs no job: `user_plan()` reads the subscription's period end on every check, so an expired or halted
+subscription is Free on the next request. Existing webinars and registrations are kept; only new ones are capped.
 
 ## Payments (Razorpay Subscriptions)
 

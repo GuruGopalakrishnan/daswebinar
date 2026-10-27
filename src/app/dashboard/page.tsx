@@ -127,7 +127,7 @@ async function DashboardContent() {
           actions={
             atFreeLimit ? (
               <Button asChild variant="outline">
-                <Link href="/dashboard/billing">
+                <Link href="/upgrade">
                   <Sparkles /> Upgrade for more webinars
                 </Link>
               </Button>
@@ -182,7 +182,7 @@ async function DashboardContent() {
 
       {plan.plan === "free" && (
         <Link
-          href="/dashboard/billing"
+          href="/upgrade"
           className="group flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-card transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:gap-4"
         >
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
