@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
 import {
   BarChart3,
   ChevronUp,
@@ -46,6 +47,36 @@ import type { RecorderState } from "./use-recorder";
 
 export type Panel = "chat" | "qna" | "polls" | "people";
 
+const PANELS = [
+  { id: "chat", label: "Chat", shortcut: "C", icon: MessageSquare },
+  { id: "qna", label: "Q&A", shortcut: "Q", icon: MessageCircleQuestion },
+  { id: "polls", label: "Polls", shortcut: "P", icon: BarChart3 },
+  { id: "people", label: "People", shortcut: "U", icon: Users },
+] as const satisfies readonly { id: Panel; label: string; shortcut: string; icon: unknown }[];
+
+function CountBadge({
+  badge,
+  dotClassName,
+  numberClassName = "-top-0.5 -right-0.5",
+}: {
+  badge: number | "dot" | undefined;
+  dotClassName?: string;
+  numberClassName?: string;
+}) {
+  if (badge === "dot") return <span className={cn("absolute size-2 rounded-full bg-highlight ring-2 ring-stage", dotClassName)} />;
+  if (!badge) return null;
+  return (
+    <span
+      className={cn(
+        "absolute min-w-4.5 rounded-full bg-highlight px-1 text-[10px] leading-4.5 font-semibold text-black tabular-nums",
+        numberClassName,
+      )}
+    >
+      {badge > 99 ? "99+" : badge}
+    </span>
+  );
+}
+
 const btn =
   "relative flex size-11 items-center justify-center rounded-full text-white/90 transition-all outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-primary active:scale-95 disabled:opacity-40 [&_svg]:size-5";
 
@@ -79,13 +110,7 @@ function DockButton({
           className={cn(btn, active && "bg-white/15", danger && "bg-destructive text-white hover:bg-destructive/90", className)}
         >
           {children}
-          {badge === "dot" ? (
-            <span className="absolute top-2 right-2 size-2 rounded-full bg-highlight ring-2 ring-stage" />
-          ) : badge ? (
-            <span className="absolute -top-0.5 -right-0.5 min-w-4.5 rounded-full bg-highlight px-1 text-[10px] leading-4.5 font-semibold text-black tabular-nums">
-              {badge > 99 ? "99+" : badge}
-            </span>
-          ) : null}
+          <CountBadge badge={badge} dotClassName="top-2 right-2" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="top">
@@ -241,18 +266,20 @@ export function Dock(p: Props) {
 
       <Divider />
 
-      <DockButton label="Chat" shortcut="C" onClick={() => p.onPanel("chat")} active={p.panel === "chat"} badge={p.badges.chat}>
-        <MessageSquare />
-      </DockButton>
-      <DockButton label="Q&A" shortcut="Q" onClick={() => p.onPanel("qna")} active={p.panel === "qna"} badge={p.badges.qna}>
-        <MessageCircleQuestion />
-      </DockButton>
-      <DockButton label="Polls" shortcut="P" onClick={() => p.onPanel("polls")} active={p.panel === "polls"} badge={p.badges.polls}>
-        <BarChart3 />
-      </DockButton>
-      <DockButton label="People" shortcut="U" onClick={() => p.onPanel("people")} active={p.panel === "people"} badge={p.badges.people}>
-        <Users />
-      </DockButton>
+      {/* On phones these live in MobilePanelNav instead. */}
+      {PANELS.map(({ id, label, shortcut, icon: Icon }) => (
+        <DockButton
+          key={id}
+          label={label}
+          shortcut={shortcut}
+          onClick={() => p.onPanel(id)}
+          active={p.panel === id}
+          badge={p.badges[id]}
+          className="hidden sm:flex"
+        >
+          <Icon />
+        </DockButton>
+      ))}
 
       <DropdownMenu>
         <Tooltip>
@@ -306,6 +333,53 @@ export function Dock(p: Props) {
   );
 }
 
+/** Phones: the room's panels as a labeled bottom navigation bar. */
+export function MobilePanelNav({
+  panel,
+  badges,
+  onPanel,
+}: {
+  panel: Panel | null;
+  badges: Props["badges"];
+  onPanel: (p: Panel) => void;
+}) {
+  return (
+    <nav
+      aria-label="Room panels"
+      className="relative z-50 grid shrink-0 grid-cols-4 border-t border-white/10 bg-stage pb-[env(safe-area-inset-bottom)] sm:hidden"
+    >
+      {PANELS.map(({ id, label, icon: Icon }) => {
+        const active = panel === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onPanel(id)}
+            aria-pressed={active}
+            className={cn(
+              "relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium text-white/55 transition-colors outline-none focus-visible:bg-white/5 active:bg-white/5",
+              active && "text-white",
+            )}
+          >
+            {active && (
+              <motion.span
+                layoutId="mobile-panel-indicator"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
+                className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
+              />
+            )}
+            <span className="relative">
+              <Icon className="size-5" />
+              <CountBadge badge={badges[id]} dotClassName="-top-0.5 -right-0.5" numberClassName="-top-2 -right-3" />
+            </span>
+            {label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function DeviceMenu({ kind, media }: { kind: "mic" | "camera"; media: LocalMedia }) {
   const list = kind === "mic" ? media.devices.mics : media.devices.cameras;
   const value = kind === "mic" ? media.micId : media.cameraId;
@@ -315,7 +389,7 @@ function DeviceMenu({ kind, media }: { kind: "mic" | "camera"; media: LocalMedia
         <button
           type="button"
           aria-label={kind === "mic" ? "Audio settings" : "Video settings"}
-          className="-ml-1 flex h-11 w-5 items-center justify-center rounded-full text-white/60 hover:text-white"
+          className="-ml-1 hidden h-11 w-5 items-center justify-center rounded-full text-white/60 hover:text-white sm:flex"
         >
           <ChevronUp className="size-3.5" />
         </button>

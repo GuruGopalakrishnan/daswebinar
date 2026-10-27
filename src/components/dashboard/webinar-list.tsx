@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,7 +112,7 @@ export function WebinarList({ items }: { items: WebinarListItem[] }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="min-w-0 rounded-xl border bg-card shadow-card">
       <div className="flex items-center gap-1 overflow-x-auto border-b p-2 scrollbar-thin" role="tablist" aria-label="Filter webinars">
         {FILTERS.map((f) => {
           const active = f.id === filter;
@@ -139,7 +140,7 @@ export function WebinarList({ items }: { items: WebinarListItem[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState filter={filter} />
+        <ListEmptyState filter={filter} />
       ) : (
         <ul className="divide-y">
           <AnimatePresence initial={false}>
@@ -256,7 +257,7 @@ export function WebinarList({ items }: { items: WebinarListItem[] }) {
   );
 }
 
-function EmptyState({ filter }: { filter: FilterId }) {
+function ListEmptyState({ filter }: { filter: FilterId }) {
   const copy: Record<FilterId, string> = {
     upcoming: "No upcoming webinars yet.",
     live: "Nothing is live right now.",
@@ -265,16 +266,16 @@ function EmptyState({ filter }: { filter: FilterId }) {
     all: "You haven't created a webinar yet.",
   };
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex size-12 items-center justify-center rounded-xl border bg-background">
-        <Video className="size-5 text-muted-foreground" />
-      </div>
-      <p className="text-sm text-muted-foreground">{copy[filter]}</p>
-      <Button asChild size="sm">
-        <Link href="/dashboard/webinars/new">
-          <Plus /> Create webinar
-        </Link>
-      </Button>
-    </div>
+    <EmptyState
+      icon={Video}
+      title={copy[filter]}
+      action={
+        <Button asChild size="sm">
+          <Link href="/dashboard/webinars/new">
+            <Plus /> Create webinar
+          </Link>
+        </Button>
+      }
+    />
   );
 }

@@ -23,7 +23,7 @@ import { REACTIONS } from "@/lib/realtime/protocol";
 import { cn } from "@/lib/utils";
 import type { WebinarStatus } from "@/lib/webinars/types";
 import { ChatPanel } from "./chat-panel";
-import { Dock, type Panel } from "./dock";
+import { Dock, MobilePanelNav, type Panel } from "./dock";
 import { PeoplePanel } from "./people-panel";
 import { PollOverlay } from "./poll-overlay";
 import { PollsPanel } from "./polls-panel";
@@ -264,96 +264,101 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
 
   const blocked = state.connection === "unauthorized" || state.connection === "forbidden" || state.connection === "removed";
 
+  const badges = {
+    chat: unreadChat || undefined,
+    qna: newQuestions || undefined,
+    polls: !isHost && openPolls ? ("dot" as const) : undefined,
+    people: isHost ? state.handRaises.length || undefined : undefined,
+  };
+
   return (
     <div className="dark flex h-dvh overflow-hidden bg-stage text-foreground">
-      {/* Stage column */}
-      <div className="relative min-w-0 flex-1">
-        <Stage
-          isHost={isHost}
-          status={effectiveStatus}
-          hostName={webinar.hostName}
-          startsAt={webinar.startsAt}
-          camera={media.camera}
-          screen={media.screen}
-          micOn={media.micOn}
-          micLevel={micLevel}
-          broadcast={broadcast}
-          bursts={state.bursts}
-          onBurstDone={actions.burstDone}
-          spotlight={spotlight}
-        >
-          <PollOverlay polls={state.polls} isHost={isHost} actions={actions} />
-        </Stage>
-
-        {/* Top bar */}
-        <header
-          className={cn(
-            "absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/60 to-transparent p-3 text-white transition-opacity duration-300 sm:p-4",
-            chromeHidden && "pointer-events-none opacity-0",
-          )}
-        >
-          <Button asChild variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Back">
-            <Link href={isHost ? `/dashboard/webinars/${webinar.id}` : `/register/${webinar.id}`} onClick={() => media.release()}>
-              <ChevronLeft />
-            </Link>
-          </Button>
-          <h1 className="min-w-0 truncate text-sm font-medium sm:text-base">{webinar.title}</h1>
-          <StatusPill status={effectiveStatus} startedAt={startedAt} isHost={isHost} />
-          {state.settings?.recording && (
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" title="This session is being recorded">
-              <span className="size-2 animate-pulse rounded-full bg-live" /> REC
-            </span>
-          )}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {(state.connection === "reconnecting" || state.connection === "error" || broadcast.state === "reconnecting") && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2.5 py-1 text-xs text-warning" role="status">
-                <WifiOff className="size-3.5" /> Reconnecting…
-              </span>
-            )}
-            {live && <NetworkBars quality={broadcast.network} />}
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs backdrop-blur" aria-label={`${state.liveCount} in the room`}>
-              <Users className="size-3.5" /> <span className="tabular-nums">{state.liveCount.toLocaleString()}</span>
-            </span>
-          </div>
-        </header>
-
-        {/* Dock */}
-        <div
-          className={cn(
-            "absolute inset-x-0 bottom-0 flex justify-center p-3 transition-all duration-300 sm:p-4",
-            chromeHidden && "pointer-events-none translate-y-4 opacity-0",
-          )}
-        >
-          <Dock
+      {/* Stage column; on phones the panel nav sits under the stage */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative min-h-0 flex-1">
+          <Stage
             isHost={isHost}
             status={effectiveStatus}
-            media={media}
+            hostName={webinar.hostName}
+            startsAt={webinar.startsAt}
+            camera={media.camera}
+            screen={media.screen}
+            micOn={media.micOn}
             micLevel={micLevel}
-            handRaised={myHandRaised}
-            handRaiseEnabled={state.settings?.handRaiseEnabled ?? true}
-            reactionsEnabled={state.settings?.reactionsEnabled ?? true}
-            panel={panel}
-            badges={{
-              chat: unreadChat || undefined,
-              qna: newQuestions || undefined,
-              polls: !isHost && openPolls ? "dot" : undefined,
-              people: isHost ? state.handRaises.length || undefined : undefined,
-            }}
-            recorder={recorder}
-            volume={broadcast.volume}
-            onVolume={broadcast.setVolume}
-            onPanel={togglePanel}
-            onReact={(e) => void react(e)}
-            onToggleHand={() => void toggleHand()}
-            onToggleRecord={toggleRecord}
-            onSettings={() => setSettingsOpen(true)}
-            onShortcuts={() => setShortcutsOpen(true)}
-            onGoLive={() => void lifecycle("start")}
-            onEnd={() => setConfirmEnd(true)}
-            onLeave={leave}
-            goingLive={busy === "live"}
-          />
+            broadcast={broadcast}
+            bursts={state.bursts}
+            onBurstDone={actions.burstDone}
+            spotlight={spotlight}
+          >
+            <PollOverlay polls={state.polls} isHost={isHost} actions={actions} />
+          </Stage>
+
+          {/* Top bar */}
+          <header
+            className={cn(
+              "absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/60 to-transparent p-3 text-white transition-opacity duration-300 sm:p-4",
+              chromeHidden && "pointer-events-none opacity-0",
+            )}
+          >
+            <Button asChild variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Back">
+              <Link href={isHost ? `/dashboard/webinars/${webinar.id}` : `/register/${webinar.id}`} onClick={() => media.release()}>
+                <ChevronLeft />
+              </Link>
+            </Button>
+            <h1 className="min-w-0 truncate text-sm font-medium sm:text-base">{webinar.title}</h1>
+            <StatusPill status={effectiveStatus} startedAt={startedAt} isHost={isHost} />
+            {state.settings?.recording && (
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" title="This session is being recorded">
+                <span className="size-2 animate-pulse rounded-full bg-live" /> REC
+              </span>
+            )}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {(state.connection === "reconnecting" || state.connection === "error" || broadcast.state === "reconnecting") && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2.5 py-1 text-xs text-warning" role="status">
+                  <WifiOff className="size-3.5" /> Reconnecting…
+                </span>
+              )}
+              {live && <NetworkBars quality={broadcast.network} />}
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs backdrop-blur" aria-label={`${state.liveCount} in the room`}>
+                <Users className="size-3.5" /> <span className="tabular-nums">{state.liveCount.toLocaleString()}</span>
+              </span>
+            </div>
+          </header>
+
+          {/* Dock */}
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 flex justify-center p-3 transition-all duration-300 sm:p-4",
+              chromeHidden && "pointer-events-none translate-y-4 opacity-0",
+            )}
+          >
+            <Dock
+              isHost={isHost}
+              status={effectiveStatus}
+              media={media}
+              micLevel={micLevel}
+              handRaised={myHandRaised}
+              handRaiseEnabled={state.settings?.handRaiseEnabled ?? true}
+              reactionsEnabled={state.settings?.reactionsEnabled ?? true}
+              panel={panel}
+              badges={badges}
+              recorder={recorder}
+              volume={broadcast.volume}
+              onVolume={broadcast.setVolume}
+              onPanel={togglePanel}
+              onReact={(e) => void react(e)}
+              onToggleHand={() => void toggleHand()}
+              onToggleRecord={toggleRecord}
+              onSettings={() => setSettingsOpen(true)}
+              onShortcuts={() => setShortcutsOpen(true)}
+              onGoLive={() => void lifecycle("start")}
+              onEnd={() => setConfirmEnd(true)}
+              onLeave={leave}
+              goingLive={busy === "live"}
+            />
+          </div>
         </div>
+        <MobilePanelNav panel={panel} badges={badges} onPanel={togglePanel} />
       </div>
 
       {/* Side drawer (bottom sheet on small screens) */}
@@ -365,7 +370,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 24 }}
             transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-            className="fixed inset-x-0 bottom-0 z-40 flex h-[70dvh] flex-col rounded-t-3xl border-t bg-card shadow-2xl lg:static lg:z-auto lg:h-auto lg:w-[380px] lg:rounded-none lg:border-t-0 lg:border-l lg:shadow-none"
+            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex h-[65dvh] flex-col rounded-t-3xl border-t bg-card shadow-2xl sm:bottom-0 sm:h-[70dvh] lg:static lg:z-auto lg:h-auto lg:w-[380px] lg:rounded-none lg:border-t-0 lg:border-l lg:shadow-none"
             aria-label={PANEL_TITLES[panel]}
           >
             <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">

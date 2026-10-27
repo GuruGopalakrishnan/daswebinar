@@ -78,3 +78,15 @@ Priorities: **P0** before charging customers · **P1** what makes it premium and
 - [ ] Co-host role (moderate chat/Q&A without publishing)
 - [ ] Integrations: Zapier/webhooks on registration, Google Calendar, CRM tags
 - [ ] Automated tests: extend `scripts/e2e-api.mjs` to cover guest join; Playwright for the room happy path
+
+### Phase 2: UI/UX (2026-10-27)
+- [x] Design system: elevation + motion tokens, `PageHeader`, `StatCard`, `EmptyState`, rules in `docs/design-system.md`
+- [x] Landing page: reviewed on desktop and phone, nothing broken, left as is
+- [x] Dashboard: fixed phone overflow, stat cards, shared empty states, first-run onboarding checklist
+- [x] Fixed the `Date.now()` prerender error on every signed-in page (`src/lib/supabase/server.ts`)
+- [x] Room (host + attendee): labeled bottom navigation on phones, decluttered dock with 44 px targets
+- [x] Registration page: serif title, sticky "Save my seat" bar on phones
+- [ ] Room: **panelist / speaker role** (needs a publisher token for promoted attendees, a speaker tile layout, and a promote/demote control for the host)
+- [ ] Room on phones: switching mic/camera mid-session (device menus are desktop-only; phones pick devices on the pre-join screen)
+- [ ] Dark-mode pass on the dashboard and registration page (tokens exist; not reviewed screen by screen)
+- [ ] Webinar manage page, billing page and creation wizard: visual pass with the new components

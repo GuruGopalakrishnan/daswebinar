@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CopyButton } from "@/components/copy-button";
+import { REGISTERED_EVENT } from "@/components/register/mobile-register-bar";
 import { downloadIcs, googleCalendarUrl } from "@/lib/calendar";
 import { createClient } from "@/lib/supabase/client";
 import { useMounted } from "@/hooks/use-client-values";
@@ -141,6 +142,7 @@ function RegisterForm({
         return;
       }
       onDone({ status: json.data.status, joinPath: json.data.joinPath ?? null, hasSession: session });
+      window.dispatchEvent(new Event(REGISTERED_EVENT));
     } catch {
       setError("Network error. Check your connection and try again.");
     } finally {

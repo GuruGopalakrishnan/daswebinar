@@ -12,6 +12,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { StatusBadge } from "@/components/webinar/status-badge";
 import { LocalTime } from "@/components/register/local-time";
 import { RegisterPanel } from "@/components/register/register-panel";
+import { MobileRegisterBar } from "@/components/register/mobile-register-bar";
 import { getCurrentUser, isGuest } from "@/lib/auth";
 import { formatDuration } from "@/lib/format";
 import { getHostWebinar, getMyRegistration, getPublicWebinar, isUuid } from "@/lib/webinars/queries";
@@ -59,6 +60,12 @@ async function RegisterContent({ params }: Pick<PageProps<"/register/[id]">, "pa
     ? await Promise.all([getMyRegistration(id, user.id), getHostWebinar(id)])
     : [null, null];
 
+  // The mobile "Save my seat" bar only makes sense while the form is showing.
+  const canRegister =
+    (webinar.status === "scheduled" || webinar.status === "live") &&
+    !webinar.isFull &&
+    (!registration || registration.status === "cancelled");
+
   // A guest session (anonymous, from an earlier registration) can join rooms
   // but has no verified email, so the form still asks for one.
   const account = user && !isGuest(user) ? user : null;
@@ -84,7 +91,7 @@ async function RegisterContent({ params }: Pick<PageProps<"/register/[id]">, "pa
         )}
 
         <StatusBadge status={webinar.status} />
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">{webinar.title}</h1>
+        <h1 className="mt-4 font-display text-[2.75rem] leading-[1.05] tracking-tight text-balance sm:text-6xl">{webinar.title}</h1>
 
         {webinar.hostName && (
           <div className="mt-6 flex items-center gap-3">
@@ -131,7 +138,7 @@ async function RegisterContent({ params }: Pick<PageProps<"/register/[id]">, "pa
         )}
       </div>
 
-      <aside className="lg:sticky lg:top-8 lg:self-start">
+      <aside id="register" className="scroll-mt-6 lg:sticky lg:top-8 lg:self-start">
         <RegisterPanel
           webinar={{
             id: webinar.id,
@@ -150,6 +157,8 @@ async function RegisterContent({ params }: Pick<PageProps<"/register/[id]">, "pa
           existingJoinPath={registration ? `/join/${registration.joinToken}` : null}
         />
       </aside>
+
+      {canRegister && <MobileRegisterBar targetId="register" live={webinar.status === "live"} />}
     </div>
   );
 }
