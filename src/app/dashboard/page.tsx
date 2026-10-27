@@ -1,15 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, ArrowUpRight, CalendarClock, Plus, Radio, Sparkles, Users, Video } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Plus, Radio, Sparkles, Users, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CopyButton } from "@/components/copy-button";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Reveal } from "@/components/motion";
 import { WebinarList, type WebinarListItem } from "@/components/dashboard/webinar-list";
-import { OnboardingChecklist, type OnboardingStep } from "@/components/dashboard/onboarding-checklist";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
+import { buildOnboardingSteps } from "@/components/dashboard/onboarding-steps";
 import { requireUser } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
 import { listHostWebinars } from "@/lib/webinars/queries";
@@ -44,57 +44,7 @@ async function DashboardContent() {
   const totalRegistrations = webinars.reduce((sum, w) => sum + w.registrationCount, 0);
   const next = upcoming[0];
 
-  // First-run guide. Each step is derived from data, never from a stored flag.
-  const draft = webinars.find((w) => w.status === "draft");
-  const published = live[0] ?? next ?? webinars.find((w) => w.status !== "draft" && w.status !== "cancelled");
-  const steps: OnboardingStep[] = [
-    {
-      id: "create",
-      title: "Create your first webinar",
-      description: "Pick a title and a time. You can change everything later.",
-      done: webinars.length > 0,
-      action: (
-        <Button asChild size="sm">
-          <Link href="/dashboard/webinars/new">
-            <Plus /> Create webinar
-          </Link>
-        </Button>
-      ),
-    },
-    {
-      id: "publish",
-      title: "Publish it",
-      description: "Publishing opens your registration page to the world.",
-      done: webinars.some((w) => w.status !== "draft"),
-      action: draft && (
-        <Button asChild size="sm">
-          <Link href={`/dashboard/webinars/${draft.id}`}>
-            Review and publish <ArrowRight />
-          </Link>
-        </Button>
-      ),
-    },
-    {
-      id: "share",
-      title: "Share your registration page",
-      description: "Post the link on Instagram, WhatsApp or your email list. Your first sign-up ticks this off.",
-      done: totalRegistrations > 0,
-      action: published && <CopyButton value={`/register/${published.id}`} size="sm" label="Copy registration link" />,
-    },
-    {
-      id: "live",
-      title: "Go live for the first time",
-      description: "Open the studio, check your camera and mic, then press Go live.",
-      done: plan.webinarsRun > 0 || webinars.some((w) => w.status === "live" || w.status === "ended"),
-      action: published && (
-        <Button asChild size="sm">
-          <Link href={`/room/${published.id}`}>
-            <Video /> Open the studio
-          </Link>
-        </Button>
-      ),
-    },
-  ];
+  const steps = buildOnboardingSteps(webinars, plan, now);
   const onboarding = steps.some((s) => !s.done);
   const isNew = webinars.length === 0;
 

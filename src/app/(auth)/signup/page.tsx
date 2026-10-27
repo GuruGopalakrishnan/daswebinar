@@ -29,7 +29,7 @@ async function SignupContent({ searchParams }: Pick<PageProps<"/signup">, "searc
   const params = await searchParams;
   // Picked Pro on the pricing section: open checkout right after confirming email.
   const pro = params.plan === "pro";
-  const next = pro ? "/upgrade?checkout=1" : safeNextPath(params.next, "/dashboard?welcome=1");
+  const next = pro ? "/upgrade?checkout=1" : safeNextPath(params.next, "/onboarding");
 
   return (
     <>

@@ -58,6 +58,9 @@ async function LoginForms({ searchParams }: Pick<PageProps<"/login">, "searchPar
           { name: "password", label: "Password", type: "password", autoComplete: "current-password" },
         ]}
       />
+      <Link href="/forgot-password" className="-mt-3 justify-self-end text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        Forgot password?
+      </Link>
 
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <Separator className="flex-1" /> or <Separator className="flex-1" />

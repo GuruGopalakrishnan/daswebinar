@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { safeNextPath } from "@/lib/auth";
+import { RESET_PASSWORD_PATH, safeNextPath } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/site-url";
 
 export type AuthFormState = {
@@ -55,7 +55,7 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   }
 
-  const next = safeNextPath(formData.get("next"), "/dashboard?welcome=1");
+  const next = safeNextPath(formData.get("next"), "/onboarding");
   const { email, password, fullName } = parsed.data;
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -104,5 +104,54 @@ export async function sendMagicLink(
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect("/login");
+  redirect("/");
+}
+
+export async function requestPasswordReset(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const parsed = magicLinkSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: await callbackUrl(RESET_PASSWORD_PATH),
+  });
+  if (error?.status === 429) {
+    return { error: "Too many requests. Wait a minute, then try again." };
+  }
+  // Same answer whether or not the account exists.
+  return { message: "If an account uses that email, a reset link is on its way. It works for one hour." };
+}
+
+const newPasswordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, { message: "The passwords don't match.", path: ["confirmPassword"] });
+
+export async function updatePassword(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const parsed = newPasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  }
+
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user || data.user.is_anonymous) {
+    return { error: "This reset link has expired. Request a new one." };
+  }
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    return {
+      error:
+        error.code === "same_password"
+          ? "Choose a password you haven't used before."
+          : error.code === "weak_password"
+            ? "That password is too easy to guess. Try a longer one."
+            : "Couldn't update your password. Request a new reset link and try again.",
+    };
+  }
+  redirect("/dashboard");
 }

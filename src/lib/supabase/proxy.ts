@@ -2,9 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/room", "/recordings", "/upgrade"];
+const PROTECTED_PREFIXES = ["/dashboard", "/room", "/recordings", "/upgrade", "/onboarding"];
 /** Guest (anonymous) sessions only reach attendee pages; these need a real account. */
-const ACCOUNT_PREFIXES = ["/dashboard", "/upgrade"];
+const ACCOUNT_PREFIXES = ["/dashboard", "/upgrade", "/onboarding"];
 const AUTH_PAGES = ["/login", "/signup"];
 const PUBLIC_PATHS = ["/", "/pricing"];
 

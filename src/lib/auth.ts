@@ -27,6 +27,9 @@ export async function requireUser(next = "/dashboard", { allowGuest = false } = 
   return user;
 }
 
+/** Where a password-reset link lands: the callback signs the user in, then this page asks for a new password. */
+export const RESET_PASSWORD_PATH = "/reset-password";
+
 /** Only allow same-origin relative paths as post-auth redirect targets. */
 export function safeNextPath(value: unknown, fallback = "/dashboard"): string {
   if (typeof value !== "string") return fallback;

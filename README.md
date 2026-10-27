@@ -119,13 +119,24 @@ storage. It costs extra and needs a storage bucket.
 2. Copy `.env.example` to `.env.local` (and set the same variables in Vercel). In production,
    `NEXT_PUBLIC_SITE_URL` must be your live domain.
 3. **Supabase → Authentication → URL Configuration** (this is what fixes "email link opens localhost"):
-   - **Site URL**: `https://yourdomain.com`
-   - **Redirect URLs**: `https://yourdomain.com/auth/callback`, plus `http://localhost:3000/auth/callback` for development.
-     If you use Vercel preview deployments, also add `https://*-yourteam.vercel.app/auth/callback`.
-4. Recommended: **Supabase → Authentication → Email Templates → Confirm signup**, change the link to
-   `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`. Do the same for Magic Link with `type=magiclink`.
-   This makes links work even when opened on a different device than the one used to sign up. Without it, the
-   callback still confirms the email and asks the user to log in.
+   - **Site URL**: `https://daswebinar.vercel.app` (your production domain)
+   - **Redirect URLs**: `https://daswebinar.vercel.app/**` and `http://localhost:3000/**`. For Vercel preview
+     deployments, also `https://*-<your-vercel-team>.vercel.app/**`.
+
+   Every auth email asks Supabase to return to `<site>/auth/callback?next=…`. If that address doesn't match a
+   Redirect URL, Supabase silently uses the Site URL instead (and drops the path), so a localhost Site URL sends
+   production users to localhost. Use `/**` so the `?next=` part matches too.
+4. Recommended: **Supabase → Authentication → Email Templates**, so links work even when opened on another device
+   or browser than the one that asked for them:
+   - **Confirm signup**: link to `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`
+   - **Magic Link**: `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=magiclink`
+   - **Reset Password**: `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery`
+
+   Without this, links still work in the same browser. A signup link opened elsewhere confirms the email and asks
+   the user to log in; a reset link opened elsewhere asks them to request a new one.
+   **Also: Authentication → SMTP Settings.** Supabase's built-in sender allows only a few auth emails per hour, so
+   in production sign-up and reset emails stop arriving. Use Resend: host `smtp.resend.com`, port `465`, username
+   `resend`, password = your Resend API key, sender = an address on your verified domain.
 5. **Supabase → Authentication → Sign In / Providers → Allow anonymous sign-ins: on.** This is what lets
    attendees join without creating an account (see "Guest join" below). Don't switch on **Attack Protection →
    CAPTCHA** yet: once it's on, every auth call (login, sign-up, guest) must send a captcha token, and the forms
