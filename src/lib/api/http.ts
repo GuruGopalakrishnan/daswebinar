@@ -75,10 +75,14 @@ export function parseId(value: string) {
   return result.data;
 }
 
-export async function requireApiUser(supabase: SupabaseClient): Promise<User> {
+/** Guest (anonymous) sessions are rejected unless the endpoint is one attendees use. */
+export async function requireApiUser(supabase: SupabaseClient, { allowGuest = false } = {}): Promise<User> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) {
     throw new ApiError(401, "unauthorized", "Sign in to continue.");
+  }
+  if (!allowGuest && data.user.is_anonymous) {
+    throw new ApiError(403, "account_required", "Create a free account to do that.");
   }
   return data.user;
 }
@@ -91,6 +95,7 @@ const DOMAIN_ERRORS: Record<string, [number, string]> = {
   invalid_status_transition: [409, "That status change isn't allowed."],
   missing_required_answers: [400, "Please answer all required questions."],
   invalid_answers: [400, "One of your answers is too long."],
+  plan_webinar_limit: [402, "The free plan includes one webinar. Upgrade to Pro for unlimited webinars."],
 };
 
 /** Maps a PostgREST error to an ApiError. Never leaks raw database messages. */

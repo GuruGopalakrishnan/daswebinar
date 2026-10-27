@@ -18,7 +18,7 @@ export function buildIcs(e: CalendarEvent) {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Webinar Clone//EN",
+    "PRODID:-//Onstage//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

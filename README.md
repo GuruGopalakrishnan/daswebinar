@@ -1,47 +1,123 @@
-# webinar-clone
+# Onstage (webinar platform)
 
-A webinar platform built with Next.js 16 (App Router), Supabase (incl. Realtime) and Agora.
-The architecture follows the patterns observed in the webinar.gg analysis. All code here is
-original.
-
-## Status
-
-| Phase | Scope | State |
-|---|---|---|
-| 1 | Project structure, Supabase auth (password + magic link), protected dashboard | **Done** |
-| 2 | Webinar CRUD API (`/api/webinars`), schema + RLS, registration | **Done** (API only; dashboard UI pending) |
-| 3 | Realtime: public chat, presence, Q&A, polls, hand raise, reactions, settings | **Done** (Supabase Realtime; needs migration 4) |
-| UI | Landing, dashboard, create/edit wizard, manage page, registration, live room, replay player | **Done** (needs migration 3) |
-| 4 | Agora video: token minting, publish/subscribe, cloud recording | Planned |
+A webinar platform built with Next.js 16 (App Router), Supabase (auth, Postgres, Realtime), Agora (live video)
+and Razorpay (subscriptions). All code here is original. The brand name lives in `src/lib/brand.ts`.
 
 ## Pages
 
 | Route | What it is |
 |---|---|
-| `/` | Marketing landing page: hero with an animated product preview, features, how it works, pricing, FAQ, CTA |
-| `/login`, `/signup` | Split-screen auth |
-| `/dashboard` | Stats, quick actions, a live-now banner and a filterable webinar list |
-| `/dashboard/webinars/new`, `…/[id]/edit` | 5-step wizard: details → schedule (timezone-aware) → settings → registration questions → review |
-| `/dashboard/webinars/[id]` | Manage page: overview, share link, registrations (approve/reject, search, CSV), recordings |
-| `/register/[id]` | Public registration with a countdown, local time and custom fields; add-to-calendar on success |
-| `/room/[id]` | Live room: stage, controls, chat / Q&A / polls / people, reactions, host settings, go live / end |
-| `/recordings/[id]` | Replay player: keyboard shortcuts, speed, picture-in-picture, resume position |
+| `/` | Landing page: fully static (no auth lookup, CSS-only motion), benefit-led copy, ₹ pricing |
+| `/login`, `/signup` | Auth. `/signup?plan=pro` sends the user to checkout right after they confirm their email |
+| `/dashboard` | Stats, plan banner, webinar list |
+| `/dashboard/webinars/new`, `…/[id]/edit` | 5-step wizard |
+| `/dashboard/webinars/[id]` | Manage page: share link, registrations, recordings (by URL) |
+| `/dashboard/billing` | Current plan, usage, Razorpay checkout, cancel |
+| `/dashboard/recordings` | Local recordings saved in this browser: save to disk, recover after a crash |
+| `/register/[id]` | Public registration page. Guests register and join without an account |
+| `/join/[token]` | Personal join link: enter the room from any device without logging in |
+| `/room/[id]` | Live room: pre-join check → studio (stage, dock, drawer, on-stage polls, spotlight, recording) |
+| `/recordings/[id]` | Replay player |
 
-Video in the room is **local only** for now. The host sees their real camera and screen-share
-preview, and attendees see a status card. Broadcasting arrives with the video provider in
-Phase 4.
+## Plans
+
+| | Free (₹0) | Pro (₹499/month) |
+|---|---|---|
+| Webinars | 1 per account | Unlimited |
+| Attendees | 100 per webinar (pending + approved registrations) | Unlimited (or the host's own capacity) |
+
+The limits are enforced **in the database** (`supabase/migrations/20261027000000_plans_billing.sql`), so every write path
+is covered:
+
+- a `before insert` trigger on `webinars` blocks a second webinar on the free plan (advisory lock, so parallel requests can't slip through)
+- `start_webinar()` blocks running a second webinar. Webinars that went live are logged in `webinar_usage`, so deleting a finished webinar doesn't free a slot
+- `register_for_webinar()` and a trigger on `registrations` cap attendees at `webinar_attendee_limit()`
+- `user_plan()` is `pro` while the Razorpay subscription is authenticated/active/pending (or cancelled but paid up), plus one day of grace
+
+The API returns `402 plan_webinar_limit`, and the UI shows an **Upgrade** action. Prices shown in the UI come from
+`src/lib/billing/plans.ts`. The amount actually charged comes from the Razorpay plan.
+
+## Payments (Razorpay Subscriptions)
+
+1. The user clicks **Upgrade**. `POST /api/billing/subscribe` creates a subscription on `RAZORPAY_PLAN_ID` (with
+   `notes.user_id`) and returns its id.
+2. Razorpay Checkout opens (UPI, cards, net banking). On success, `POST /api/billing/verify` checks the HMAC signature,
+   **reads the subscription back from Razorpay** (status and period are never taken from the browser), and upgrades the
+   account.
+3. `POST /api/billing/webhook` (signature-verified) keeps renewals, failed charges (`pending` → `halted`) and
+   cancellations in sync. It is idempotent, and events for an older abandoned subscription are ignored.
+4. `POST /api/billing/cancel` cancels at the end of the cycle, so Pro stays on until the paid period ends.
+
+Writes to `subscriptions` use the service-role key (`src/lib/supabase/admin.ts`). Clients can only read their own row.
+
+## Live room
+
+```
+PreJoin (device check)  →  Studio
+                            ├─ Stage: screen share + draggable camera PiP / camera / avatar; spotlight caption; poll card; reactions
+                            ├─ Top bar: title · LIVE timer · REC · reconnecting · network bars · viewer count  (auto-hides for attendees)
+                            ├─ Dock: mic ˄ · video ˄ · present | volume · react · hand | chat · Q&A · polls · people | ••• | Go live / End / Leave
+                            └─ Drawer: one panel at a time (right side on desktop, bottom sheet on mobile)
+```
+
+- **Video (Agora, `use-broadcast.ts`):** the host publishes camera + mic as uid 1 and their screen as uid 2 (a second
+  connection, opened only while presenting), so attendees see slides and presenter together. Dual stream plus
+  attendee fallback to the low stream on weak networks. Mute = unpublish. Automatic rejoin with backoff after
+  disconnects and token expiry. Network quality is surfaced in the UI.
+- **Realtime (Supabase):** chat, Q&A (answered state, on-stage spotlight), polls, hand raise, settings and attendee
+  removal all go through `security definer` functions. Reactions are batched per sender (at most one message every 1.5 s).
+- **Zoom research** and what was adopted: [`docs/zoom-research.md`](docs/zoom-research.md).
+
+### Scale notes for 80–100+ attendees
+
+- Agora live-broadcast mode handles thousands of audience members. Watch your Agora minutes.
+- Supabase Realtime: the free plan allows 200 concurrent connections and has a message-rate quota. For regular
+  100-person sessions use the **Pro plan**. Every chat message fans out to every attendee.
+
+## Recording (local, on the host's computer)
+
+**How it works** (`src/lib/recording/`, `src/components/room/use-recorder.ts`):
+
+1. The host opens ••• → **Record to this computer** (or presses **R**). Everyone sees a **REC** badge.
+2. The browser composites the program (screen share full-frame with the camera in a corner, or the camera, or a name
+   card) onto a 1280×720 canvas at 24 fps. The host's mic is mixed in (silenced while muted), plus any shared tab audio.
+3. `MediaRecorder` encodes it (MP4/H.264 where the browser supports it, otherwise WebM) and hands over a chunk every
+   2 seconds. **Each chunk is written to IndexedDB immediately**, so memory stays flat for long sessions and a crash or
+   closed tab loses at most about 2 seconds.
+4. On **Stop** (or **End webinar**) the host picks where to save the file (Chrome/Edge save dialog; other browsers download it).
+
+**Why it doesn't affect the live session:** it reads the same local streams the broadcast already uses, sends nothing over
+the network, and never touches the live encoder. The draw loop runs on a Web Worker timer, so it keeps going when the host
+switches to their slides app. Main-thread timers would be throttled there.
+
+**Accessing recordings later:** the saved file is on the host's computer. **Dashboard → Recordings** also lists every
+recording kept in that browser, including interrupted ones, with **Save file** and **Delete**. To give registrants a
+replay, upload the file (YouTube unlisted, Drive, Vimeo) and add the link on the webinar's manage page.
+
+**Limits:** the recording is on the device and browser that recorded it; use Chrome or Edge on a desktop. If you later
+want recordings in the cloud with no host involvement, Agora Cloud Recording can write the mixed stream to S3-compatible
+storage. It costs extra and needs a storage bucket.
 
 ## Setup
 
-1. Create a Supabase project and apply the migrations:
-   ```bash
-   npx supabase link --project-ref <ref>
-   npx supabase db push
-   ```
-2. Copy `.env.example` to `.env.local` and fill in the Supabase URL and publishable key.
-3. In Supabase → Authentication → URL Configuration, add
-   `http://localhost:3000/auth/callback` to the redirect URLs.
-4. `npm run dev` → http://localhost:3000
+1. Apply the migrations: `npx supabase link --project-ref <ref>` then `npx supabase db push`.
+2. Copy `.env.example` to `.env.local` (and set the same variables in Vercel). In production,
+   `NEXT_PUBLIC_SITE_URL` must be your live domain.
+3. **Supabase → Authentication → URL Configuration** (this is what fixes "email link opens localhost"):
+   - **Site URL**: `https://yourdomain.com`
+   - **Redirect URLs**: `https://yourdomain.com/auth/callback`, plus `http://localhost:3000/auth/callback` for development.
+     If you use Vercel preview deployments, also add `https://*-yourteam.vercel.app/auth/callback`.
+4. Recommended: **Supabase → Authentication → Email Templates → Confirm signup**, change the link to
+   `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`. Do the same for Magic Link with `type=magiclink`.
+   This makes links work even when opened on a different device than the one used to sign up. Without it, the
+   callback still confirms the email and asks the user to log in.
+5. **Supabase → Authentication → Sign In / Providers → Allow anonymous sign-ins: on.** This is what lets
+   attendees join without creating an account (see "Guest join" below). Don't switch on **Attack Protection →
+   CAPTCHA** yet: once it's on, every auth call (login, sign-up, guest) must send a captcha token, and the forms
+   don't do that yet. It's on the checklist.
+6. Razorpay: create the ₹499 monthly plan, add the API keys, plan id and webhook (see `.env.example`).
+7. Agora: set `AGORA_APP_ID` and `AGORA_APP_CERTIFICATE`.
+8. `npm run dev` → http://localhost:3000
 
 ## Layout
 
@@ -61,12 +137,6 @@ src/
     dashboard/              Protected area
 supabase/migrations/        SQL schema with RLS
 ```
-
-Planned additions:
-
-- `src/app/api/webinars/` holds the REST CRUD Route Handlers (phase 2).
-- `src/app/api/agora/token/` mints server-side RTC tokens (phase 4). The app certificate
-  never reaches the client.
 
 ## Webinar API
 
@@ -91,8 +161,28 @@ and the Phase 4 lifecycle sets them.
 
 **Known gaps (to address before production):** guest registrations aren't email-verified,
 and there's no rate limiting. A script could fill a capped webinar with fake emails.
+The prioritized list is in [`docs/implementation-checklist.md`](docs/implementation-checklist.md).
 
-## Live room (Supabase Realtime)
+## Guest join
+
+Attendees don't need an account (`supabase/migrations/20261028000000_guest_join.sql`):
+
+1. On **Register**, a signed-out visitor gets a Supabase **anonymous session** (named after what they typed),
+   then registers. The registration is tied to that `auth.uid()`, so `webinar_role()`, the channel policies
+   and every room function work unchanged, and **Join** works straight away in that browser.
+2. Every registration has a secret `join_token`. `/join/<token>` shows the webinar and, on a click (never on
+   page load, so email link scanners can't use it up), signs the visitor in as a guest if needed and calls
+   `claim_registration()`. The registrant sees the link after registering; the host can copy it per attendee.
+3. Guest sessions can't host: a restrictive RLS policy blocks creating webinars, `requireUser()` /
+   `requireApiUser()` reject them unless the page or endpoint opts in with `allowGuest` (room, replay, RTC
+   token), and the proxy sends them from `/dashboard` to sign-up.
+4. Linking rules: an account (verified email) takes over a registration held by a guest session. A guest who
+   types an email only links to a registration that has no owner yet, because a typed email proves nothing.
+   A join link moves a registration between guest sessions but never away from an account.
+
+If anonymous sign-ins are off, registration still works as before; guests just can't join the room.
+
+## Realtime protocol details
 
 The room runs entirely on the Supabase project, so there's no separate server to deploy. The schema,
 functions and channel policies are in `supabase/migrations/20261026030000_realtime_room.sql`. The
@@ -106,8 +196,8 @@ client is `src/components/room/use-room.ts`, and the shared types are in `src/li
 | `room:<webinarId>:reactions` | host, attendees | host, attendees (client Broadcast) |
 
 **Access** is decided by `webinar_role()`. The host gets `host` unless the webinar is cancelled. A
-signed-in user with an **approved** registration gets `attendee` while the webinar is `scheduled` or
-`live`. Guest (no-account) registrants can't join.
+signed-in user (an account or a guest session, see "Guest join") with an **approved** registration gets
+`attendee` while the webinar is `scheduled` or `live`.
 
 **Writes go through the database.** Chat, Q&A, polls and settings are `security definer` functions,
 called with `supabase.rpc`. Each one checks access, room settings (chat/Q&A off, slow mode) and rate

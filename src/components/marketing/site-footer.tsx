@@ -1,19 +1,20 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
+import { BRAND } from "@/lib/brand";
 
 const COLUMNS = [
-  { title: "Product", links: [["Features", "/#features"], ["Pricing", "/#pricing"], ["FAQ", "/#faq"]] },
-  { title: "Get started", links: [["Create account", "/signup"], ["Log in", "/login"], ["Dashboard", "/dashboard"]] },
+  { title: "Product", links: [["Why hosts switch", "/#benefits"], ["Pricing", "/#pricing"], ["FAQ", "/#faq"]] },
+  { title: "Account", links: [["Start free", "/signup"], ["Log in", "/login"], ["Dashboard", "/dashboard"]] },
 ] as const;
 
 export function SiteFooter() {
   return (
     <footer className="border-t">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.6fr_1fr_1fr]">
         <div>
           <Logo />
           <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-            Live webinars with real-time chat, Q&amp;A, polls and reactions — built for audiences that participate.
+            Live webinars that look premium and keep your audience engaged until the very last slide.
           </p>
         </div>
         {COLUMNS.map((col) => (
@@ -33,7 +34,7 @@ export function SiteFooter() {
       </div>
       <div className="border-t">
         <p className="mx-auto max-w-6xl px-4 py-6 text-xs text-muted-foreground sm:px-6">
-          © Webinar Clone. All rights reserved.
+          © {BRAND.name}. All prices in Indian Rupees (₹).
         </p>
       </div>
     </footer>

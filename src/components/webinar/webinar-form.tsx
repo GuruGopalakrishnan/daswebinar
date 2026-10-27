@@ -235,6 +235,12 @@ function WebinarFormSteps({ webinar }: { webinar?: WebinarDto }) {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
+        if (json?.error?.code === "plan_webinar_limit") {
+          toast.error(json.error.message, {
+            action: { label: "Upgrade", onClick: () => router.push("/dashboard/billing") },
+          });
+          return;
+        }
         toast.error(json?.error?.message ?? "Something went wrong. Please try again.");
         return;
       }

@@ -25,8 +25,23 @@ export const POST = handler<Ctx>(async (request, ctx) => {
   if (error) throw dbError(error);
 
   const [row] = data as { registration_id: string; registration_status: RegistrationStatus }[];
+
+  // RLS only returns the row if the caller (account or guest session) owns it,
+  // so a typed-in email never reveals someone else's join link.
+  const { data: own } = await supabase
+    .from("registrations")
+    .select("join_token")
+    .eq("id", row.registration_id)
+    .maybeSingle<{ join_token: string }>();
+
   return NextResponse.json(
-    { data: { registrationId: row.registration_id, status: row.registration_status } },
+    {
+      data: {
+        registrationId: row.registration_id,
+        status: row.registration_status,
+        joinPath: own ? `/join/${own.join_token}` : null,
+      },
+    },
     { status: 200 },
   );
 });

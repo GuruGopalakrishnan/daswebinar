@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Download, Loader2, Search, UserX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/copy-button";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
@@ -167,6 +168,16 @@ export function RegistrationsTable({
                         </Button>
                       )}
                     </>
+                  )}
+                  {r.status === "approved" && (
+                    <CopyButton
+                      value={`/join/${r.joinToken}`}
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Copy ${r.fullName}'s join link`}
+                      title="Copy personal join link"
+                      label=""
+                    />
                   )}
                   {hasAnswers && (
                     <Button

@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Plus } from "lucide-react";
+import { CreditCard, HardDriveDownload, LayoutGrid, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const DASHBOARD_NAV = [
   { href: "/dashboard", label: "Overview", icon: LayoutGrid, exact: true },
   { href: "/dashboard/webinars/new", label: "New webinar", icon: Plus, exact: true },
+  { href: "/dashboard/recordings", label: "Recordings", icon: HardDriveDownload, exact: true },
+  { href: "/dashboard/billing", label: "Plan & billing", icon: CreditCard, exact: true },
 ];
 
 /** Same links without active state; used while the pathname streams in. */

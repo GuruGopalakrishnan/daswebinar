@@ -11,7 +11,7 @@ type Ctx = RouteContext<"/api/webinars/[id]/recordings">;
 export const GET = handler<Ctx>(async (_request, ctx) => {
   const id = parseId((await ctx.params).id);
   const supabase = await createClient();
-  await requireApiUser(supabase);
+  await requireApiUser(supabase, { allowGuest: true });
 
   const { data, error } = await supabase
     .from("recordings")

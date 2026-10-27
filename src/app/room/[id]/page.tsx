@@ -26,7 +26,7 @@ export default function RoomPage({ params }: PageProps<"/room/[id]">) {
 
 async function RoomContent({ params }: Pick<PageProps<"/room/[id]">, "params">) {
   const { id } = await params;
-  const user = await requireUser(`/room/${id}`);
+  const user = await requireUser(`/room/${id}`, { allowGuest: true });
   if (!isUuid(id)) notFound();
 
   const hosted = await getHostWebinar(id);

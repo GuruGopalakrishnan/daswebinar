@@ -34,9 +34,15 @@ async function LoginForms({ searchParams }: Pick<PageProps<"/login">, "searchPar
   const params = await searchParams;
   const next = safeNextPath(params.next);
   const callbackError = typeof params.error === "string";
+  const verified = params.verified === "1";
 
   return (
     <div className="grid gap-6">
+      {verified && (
+        <p role="status" className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+          Your email is confirmed. Log in to continue.
+        </p>
+      )}
       {callbackError && (
         <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           That sign-in link is invalid or has expired.

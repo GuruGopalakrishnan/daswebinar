@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Settings } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
 
-const TOGGLES: { key: keyof Omit<Settings, "slowModeSeconds">; label: string; body: string }[] = [
+const TOGGLES: { key: "chatEnabled" | "qnaEnabled" | "reactionsEnabled" | "handRaiseEnabled"; label: string; body: string }[] = [
   { key: "chatEnabled", label: "Chat", body: "Attendees can send messages." },
   { key: "qnaEnabled", label: "Q&A", body: "Attendees can ask and upvote questions." },
   { key: "reactionsEnabled", label: "Reactions", body: "Emoji reactions float over the stage." },

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronUp, Lock, MessageCircleQuestion } from "lucide-react";
+import { CheckCircle2, ChevronUp, Lock, MessageCircleQuestion, Presentation } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,15 +22,28 @@ export function QnaPanel({
   settings: Settings | null;
   actions: RoomActions;
 }) {
-  const [sort, setSort] = useState<"top" | "new">("top");
+  const [sort, setSort] = useState<"top" | "new" | "answered">("top");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const isHost = me?.role === "host";
   const disabled = settings !== null && !settings.qnaEnabled && !isHost;
 
-  const sorted = [...questions].sort((a, b) =>
-    sort === "top" ? b.upvotes - a.upvotes || b.askedAt.localeCompare(a.askedAt) : b.askedAt.localeCompare(a.askedAt),
-  );
+  const spotlightId = settings?.spotlightQuestionId ?? null;
+  const sorted = questions
+    .filter((q) => (sort === "answered" ? q.answeredAt : !q.answeredAt))
+    .sort((a, b) =>
+      sort === "top" ? b.upvotes - a.upvotes || b.askedAt.localeCompare(a.askedAt) : b.askedAt.localeCompare(a.askedAt),
+    );
+
+  async function spotlight(id: string | null) {
+    const res = await actions.updateSettings({ spotlightQuestionId: id });
+    if (!res.ok) toast.error(res.error.message);
+  }
+
+  async function answer(id: string, answered: boolean) {
+    const res = await actions.setAnswered(id, answered);
+    if (!res.ok) toast.error(res.error.message);
+  }
 
   async function ask() {
     const value = text.trim();
@@ -52,7 +65,7 @@ export function QnaPanel({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-1 border-b px-3 py-2">
-        {(["top", "new"] as const).map((s) => (
+        {(["top", "new", "answered"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setSort(s)}
@@ -62,17 +75,17 @@ export function QnaPanel({
               sort === s ? "bg-accent font-medium" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {s === "top" ? "Top" : "Newest"}
+            {s === "top" ? "Top" : s === "new" ? "Newest" : "Answered"}
           </button>
         ))}
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">{questions.length} questions</span>
+        <span className="ml-auto text-xs text-muted-foreground tabular-nums">{questions.filter((q) => !q.answeredAt).length} open</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
         {sorted.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <MessageCircleQuestion className="size-6" />
-            <p>No questions yet. Ask the first one!</p>
+            <p>{sort === "answered" ? "Nothing answered yet." : isHost ? "Questions from your audience appear here." : "No questions yet. Ask the first one!"}</p>
           </div>
         ) : (
           <motion.ul layout className="grid gap-2">
@@ -85,7 +98,11 @@ export function QnaPanel({
                     key={q.id}
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="flex gap-3 rounded-xl border bg-background p-3"
+                    className={cn(
+                      "flex gap-3 rounded-xl border bg-background p-3",
+                      spotlightId === q.id && "border-primary/60 ring-1 ring-primary/30",
+                      q.answeredAt && "opacity-70",
+                    )}
                   >
                     <button
                       onClick={() => upvote(q.id)}
@@ -101,12 +118,30 @@ export function QnaPanel({
                       <ChevronUp className="size-4" />
                       {q.upvotes}
                     </button>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm break-words">{q.text}</p>
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <UserAvatar name={q.author.name} id={q.author.userId} className="size-4 text-[7px]" />
                         {mine ? "You" : q.author.name}
+                        {q.answeredAt && (
+                          <span className="inline-flex items-center gap-0.5 text-success">
+                            · <CheckCircle2 className="size-3" /> Answered
+                          </span>
+                        )}
+                        {spotlightId === q.id && <span className="text-primary">· On stage</span>}
                       </p>
+                      {isHost && (
+                        <div className="mt-2 flex gap-1">
+                          {!q.answeredAt && (
+                            <Button variant="outline" size="xs" onClick={() => void spotlight(spotlightId === q.id ? null : q.id)}>
+                              <Presentation /> {spotlightId === q.id ? "Hide from stage" : "Show on stage"}
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="xs" onClick={() => void answer(q.id, !q.answeredAt)}>
+                            <CheckCircle2 /> {q.answeredAt ? "Reopen" : "Mark answered"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </motion.li>
                 );

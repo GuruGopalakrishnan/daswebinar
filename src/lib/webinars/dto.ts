@@ -5,7 +5,7 @@ export const WEBINAR_COLUMNS =
   "id, host_id, title, description, starts_at, duration_minutes, timezone, status, visibility, requires_approval, capacity, custom_fields, started_at, ended_at, created_at, updated_at";
 
 export const REGISTRATION_COLUMNS =
-  "id, webinar_id, user_id, email, full_name, status, answers, created_at, updated_at";
+  "id, webinar_id, user_id, email, full_name, status, answers, join_token, created_at, updated_at";
 
 export const RECORDING_COLUMNS = "id, webinar_id, title, video_url, duration_seconds, created_at";
 
@@ -60,6 +60,7 @@ export function toRegistrationDto(row: RegistrationRow) {
     fullName: row.full_name,
     status: row.status,
     answers: row.answers,
+    joinToken: row.join_token,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

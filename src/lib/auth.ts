@@ -11,10 +11,19 @@ export const getCurrentUser = cache(async () => {
   return data.user;
 });
 
-/** Use at the top of protected pages and Server Functions. */
-export async function requireUser(next = "/dashboard") {
+/** Guests who registered without an account get an anonymous session (see the guest_join migration). */
+export function isGuest(user: { is_anonymous?: boolean } | null) {
+  return user?.is_anonymous === true;
+}
+
+/**
+ * Use at the top of protected pages and Server Functions. Guest sessions are
+ * sent to sign up unless the page is one attendees use (`allowGuest`).
+ */
+export async function requireUser(next = "/dashboard", { allowGuest = false } = {}) {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(next)}`);
+  if (!allowGuest && isGuest(user)) redirect(`/signup?next=${encodeURIComponent(next)}`);
   return user;
 }
 

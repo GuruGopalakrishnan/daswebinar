@@ -1,9 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Hand } from "lucide-react";
+import { Hand, MoreHorizontal, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/user-avatar";
 import type { Author, HandRaise } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
@@ -20,6 +21,13 @@ export function PeoplePanel({
   actions: RoomActions;
 }) {
   const isHost = me?.role === "host";
+
+  async function remove(member: Author) {
+    if (!window.confirm(`Remove ${member.name}? They won't be able to rejoin this webinar.`)) return;
+    const res = await actions.removeAttendee(member.userId);
+    if (res.ok) toast.success(`${member.name} was removed`);
+    else toast.error(res.error.message);
+  }
 
   async function lower(userId: string) {
     const res = await actions.lowerHand(userId);
@@ -74,6 +82,20 @@ export function PeoplePanel({
               <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary uppercase">Host</span>
             )}
             {handRaises.some((h) => h.userId === m.userId) && <Hand className="size-3.5 text-warning" aria-label="Hand raised" />}
+            {isHost && m.role !== "host" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${m.name}`}>
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem variant="destructive" onSelect={() => void remove(m)}>
+                    <UserX /> Remove from webinar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </li>
         ))}
       </ul>

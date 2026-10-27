@@ -10,6 +10,10 @@ export type Settings = {
   handRaiseEnabled: boolean;
   /** Minimum seconds between chat messages per attendee (0 = off). */
   slowModeSeconds: number;
+  /** The host is recording; shown to everyone. */
+  recording: boolean;
+  /** A question the host is showing on stage, or null. */
+  spotlightQuestionId: string | null;
 };
 
 export type Author = { userId: string; name: string; role: Role };
@@ -27,6 +31,7 @@ export type Question = {
   author: Author;
   text: string;
   askedAt: string;
+  answeredAt: string | null;
   upvotes: number;
   upvotedByMe: boolean;
 };
@@ -91,8 +96,14 @@ export const EVENTS = {
   POLL_CLOSED: "poll:closed",
   LOWER_HAND: "handraise:lower_hand",
   SETTINGS_UPDATED: "webinar_settings:settings_updated",
+  /** The host removed someone; that client leaves. */
+  ATTENDEE_REMOVED: "attendee:removed",
 } as const;
 
 /** Broadcast event on the reactions topic (sent by clients). */
 export const REACTION_EVENT = "reaction:reaction_received";
-export type ReactionPayload = { emoji: Reaction; userId: string };
+/**
+ * Clients batch their reactions and send at most one message per window, so a
+ * big room reacting at once doesn't flood Realtime. counts: emoji → taps.
+ */
+export type ReactionPayload = { counts: Partial<Record<Reaction, number>>; userId: string };

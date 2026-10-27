@@ -12,7 +12,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { StatusBadge } from "@/components/webinar/status-badge";
 import { LocalTime } from "@/components/register/local-time";
 import { RegisterPanel } from "@/components/register/register-panel";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isGuest } from "@/lib/auth";
 import { formatDuration } from "@/lib/format";
 import { getHostWebinar, getMyRegistration, getPublicWebinar, isUuid } from "@/lib/webinars/queries";
 
@@ -59,10 +59,13 @@ async function RegisterContent({ params }: Pick<PageProps<"/register/[id]">, "pa
     ? await Promise.all([getMyRegistration(id, user.id), getHostWebinar(id)])
     : [null, null];
 
-  const userInfo = user
+  // A guest session (anonymous, from an earlier registration) can join rooms
+  // but has no verified email, so the form still asks for one.
+  const account = user && !isGuest(user) ? user : null;
+  const userInfo = account
     ? {
-        email: user.email ?? "",
-        name: ((user.user_metadata?.full_name as string | undefined) ?? "").trim(),
+        email: account.email ?? "",
+        name: ((account.user_metadata?.full_name as string | undefined) ?? "").trim(),
       }
     : null;
 
@@ -142,7 +145,9 @@ async function RegisterContent({ params }: Pick<PageProps<"/register/[id]">, "pa
             customFields: webinar.customFields,
           }}
           user={userInfo}
+          hasSession={user !== null}
           existingStatus={registration?.status ?? null}
+          existingJoinPath={registration ? `/join/${registration.joinToken}` : null}
         />
       </aside>
     </div>

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/auth";
-import { env } from "@/lib/env";
+import { getSiteUrl } from "@/lib/site-url";
 
 export type AuthFormState = {
   error?: string;
@@ -25,8 +25,9 @@ const magicLinkSchema = z.object({
   email: z.email("Enter a valid email address."),
 });
 
-function callbackUrl(next: string) {
-  return `${env.siteUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+/** Email links point at this deployment's public URL (never localhost in production). */
+async function callbackUrl(next: string) {
+  return `${await getSiteUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
 }
 
 export async function signIn(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -38,6 +39,9 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
+    if (error.code === "email_not_confirmed") {
+      return { error: "Confirm your email first — we sent you a link when you signed up." };
+    }
     // Generic message: don't reveal whether the email exists.
     return { error: "Invalid email or password." };
   }
@@ -51,6 +55,7 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   }
 
+  const next = safeNextPath(formData.get("next"), "/dashboard?welcome=1");
   const { email, password, fullName } = parsed.data;
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -58,7 +63,7 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: callbackUrl("/dashboard"),
+      emailRedirectTo: await callbackUrl(next),
     },
   });
   if (error) {
@@ -67,9 +72,9 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
 
   // With email confirmation on (the Supabase default) there is no session yet.
   if (!data.session) {
-    return { message: "Check your email to confirm your account." };
+    return { message: `Almost there! We sent a confirmation link to ${email}. Open it to finish setting up your account.` };
   }
-  redirect("/dashboard");
+  redirect(next);
 }
 
 export async function sendMagicLink(
@@ -86,7 +91,7 @@ export async function sendMagicLink(
     email: parsed.data.email,
     options: {
       shouldCreateUser: false,
-      emailRedirectTo: callbackUrl(safeNextPath(formData.get("next"))),
+      emailRedirectTo: await callbackUrl(safeNextPath(formData.get("next"))),
     },
   });
   if (error && error.status !== 422) {

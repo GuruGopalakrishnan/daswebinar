@@ -43,7 +43,7 @@ export default function RecordingPage({ params }: PageProps<"/recordings/[id]">)
 
 async function RecordingContent({ params }: Pick<PageProps<"/recordings/[id]">, "params">) {
   const { id } = await params;
-  await requireUser(`/recordings/${id}`);
+  await requireUser(`/recordings/${id}`, { allowGuest: true });
   if (!isUuid(id)) notFound();
 
   // RLS: only the host and approved registrants can read a recording.

@@ -19,12 +19,13 @@ import {
   type Question,
   type Reaction,
   type ReactionPayload,
+  REACTIONS,
   type Role,
   type Settings,
   type Snapshot,
 } from "@/lib/realtime/protocol";
 
-export type ConnectionState = "connecting" | "joined" | "reconnecting" | "unauthorized" | "forbidden" | "error";
+export type ConnectionState = "connecting" | "joined" | "reconnecting" | "unauthorized" | "forbidden" | "removed" | "error";
 
 export type LocalMessage = ChatMessage & { pending?: boolean; failed?: boolean };
 
@@ -81,6 +82,8 @@ const initialState: RoomState = {
 };
 
 const REACTION_LIMIT = { count: 10, windowMs: 5_000 };
+/** One reactions message per user per window, whatever the tap rate. */
+const REACTION_FLUSH_MS = 1_500;
 
 let burstSeq = 0;
 
@@ -193,6 +196,8 @@ export function useRoom(webinarId: string) {
   /** What we track in Presence; re-sent after every (re)join. */
   const presenceRef = useRef<PresenceMeta | null>(null);
   const reactionTimes = useRef<number[]>([]);
+  const pendingReactions = useRef<Partial<Record<Reaction, number>>>({});
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -274,6 +279,11 @@ export function useRoom(webinarId: string) {
         .on("broadcast", { event: EVENTS.LOWER_HAND }, ({ payload }) => {
           if ((payload as { userId: string }).userId === presenceRef.current?.userId) void track({ handRaisedAt: null });
         })
+        .on("broadcast", { event: EVENTS.ATTENDEE_REMOVED }, ({ payload }) => {
+          if ((payload as { userId: string }).userId !== presenceRef.current?.userId) return;
+          dispatch({ type: "connection", connection: "removed", error: "The host removed you from this webinar." });
+          for (const channel of channels) void supabase.removeChannel(channel);
+        })
         .on("presence", { event: "sync" }, () => {
           // Several tabs share one key (the user id), so each user counts once.
           const presence = Object.values(room.presenceState<PresenceMeta>())
@@ -300,11 +310,15 @@ export function useRoom(webinarId: string) {
 
       reactions
         .on("broadcast", { event: REACTION_EVENT }, ({ payload }) => {
-          const { emoji, userId } = payload as ReactionPayload;
+          const { counts, userId } = payload as ReactionPayload;
           const { settings, hostId } = stateRef.current;
           // Clients enforce the setting on receive; only the host may react while it's off.
           if (settings && !settings.reactionsEnabled && userId !== hostId) return;
-          dispatch({ type: "burst", emoji });
+          if (!counts || typeof counts !== "object") return;
+          for (const emoji of REACTIONS) {
+            const n = Math.min(3, Math.max(0, Math.floor(Number(counts[emoji] ?? 0))));
+            for (let i = 0; i < n; i++) dispatch({ type: "burst", emoji });
+          }
         })
         .subscribe();
     }
@@ -320,6 +334,9 @@ export function useRoom(webinarId: string) {
 
     return () => {
       cancelled = true;
+      if (flushTimer.current) clearTimeout(flushTimer.current);
+      flushTimer.current = null;
+      pendingReactions.current = {};
       auth.subscription.unsubscribe();
       for (const channel of channels) void supabase.removeChannel(channel);
       roomRef.current = null;
@@ -402,12 +419,26 @@ export function useRoom(webinarId: string) {
         reactionTimes.current = [...recent, now];
 
         dispatch({ type: "burst", emoji });
-        const status = await reactionsRef.current?.send({
-          type: "broadcast",
-          event: REACTION_EVENT,
-          payload: { emoji, userId: me?.userId ?? "" } satisfies ReactionPayload,
-        });
-        return status === "ok" ? { ok: true, data: null } : fail("offline", "You're offline. Reconnecting…");
+        pendingReactions.current[emoji] = (pendingReactions.current[emoji] ?? 0) + 1;
+        flushTimer.current ??= setTimeout(() => {
+          flushTimer.current = null;
+          const counts = pendingReactions.current;
+          pendingReactions.current = {};
+          void reactionsRef.current?.send({
+            type: "broadcast",
+            event: REACTION_EVENT,
+            payload: { counts, userId: me?.userId ?? "" } satisfies ReactionPayload,
+          });
+        }, REACTION_FLUSH_MS);
+        return { ok: true, data: null };
+      },
+      async removeAttendee(userId: string) {
+        return roomRpc<null>(supabase, "remove_room_attendee", { p_webinar_id: webinarId, p_user_id: userId });
+      },
+      async setAnswered(questionId: string, answered: boolean) {
+        const res = await roomRpc<Question>(supabase, "set_question_answered", { p_question_id: questionId, p_answered: answered });
+        if (res.ok) dispatch({ type: "question", question: res.data, mine: true });
+        return res;
       },
       async updateSettings(patch: Partial<Settings>) {
         const res = await roomRpc<Settings>(supabase, "update_room_settings", { p_webinar_id: webinarId, p_settings: patch });

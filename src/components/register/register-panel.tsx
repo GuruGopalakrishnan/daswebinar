@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CopyButton } from "@/components/copy-button";
 import { downloadIcs, googleCalendarUrl } from "@/lib/calendar";
+import { createClient } from "@/lib/supabase/client";
 import { useMounted } from "@/hooks/use-client-values";
 import type { CustomField } from "@/lib/webinars/schema";
 import type { RegistrationStatus, WebinarStatus } from "@/lib/webinars/types";
@@ -29,13 +31,21 @@ type Webinar = {
 
 type Props = {
   webinar: Webinar;
+  /** A signed-in account (verified email). Guest sessions are null here. */
   user: { email: string; name: string } | null;
+  /** Any session, including a guest one: enough to enter the room. */
+  hasSession: boolean;
   existingStatus: RegistrationStatus | null;
+  existingJoinPath: string | null;
 };
 
-export function RegisterPanel({ webinar, user, existingStatus }: Props) {
-  const [result, setResult] = useState<RegistrationStatus | null>(
-    existingStatus && existingStatus !== "cancelled" ? existingStatus : null,
+type Result = { status: RegistrationStatus; joinPath: string | null; hasSession: boolean };
+
+export function RegisterPanel({ webinar, user, hasSession, existingStatus, existingJoinPath }: Props) {
+  const [result, setResult] = useState<Result | null>(
+    existingStatus && existingStatus !== "cancelled"
+      ? { status: existingStatus, joinPath: existingJoinPath, hasSession }
+      : null,
   );
 
   const closed = webinar.status === "ended" || webinar.status === "cancelled";
@@ -45,7 +55,7 @@ export function RegisterPanel({ webinar, user, existingStatus }: Props) {
       <AnimatePresence mode="wait" initial={false}>
         {result ? (
           <motion.div key="done" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}>
-            <Success webinar={webinar} status={result} signedIn={user !== null} />
+            <Success webinar={webinar} {...result} />
           </motion.div>
         ) : closed ? (
           <motion.div key="closed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
@@ -61,7 +71,7 @@ export function RegisterPanel({ webinar, user, existingStatus }: Props) {
           </motion.div>
         ) : (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
-            <RegisterForm webinar={webinar} user={user} onDone={setResult} />
+            <RegisterForm webinar={webinar} user={user} hasSession={hasSession} onDone={setResult} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -69,14 +79,29 @@ export function RegisterPanel({ webinar, user, existingStatus }: Props) {
   );
 }
 
+/**
+ * Guests get an anonymous session first, so they can enter the room without
+ * creating an account. If anonymous sign-ins are off in Supabase, they still
+ * register, just without room access.
+ */
+async function ensureGuestSession(fullName: string) {
+  const supabase = createClient();
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return true;
+  const { error } = await supabase.auth.signInAnonymously({ options: { data: { full_name: fullName } } });
+  return !error;
+}
+
 function RegisterForm({
   webinar,
   user,
+  hasSession,
   onDone,
 }: {
   webinar: Webinar;
   user: Props["user"];
-  onDone: (status: RegistrationStatus) => void;
+  hasSession: boolean;
+  onDone: (result: Result) => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, string | boolean>>({});
   const [pending, setPending] = useState(false);
@@ -103,6 +128,7 @@ function RegisterForm({
     setPending(true);
     setError(null);
     try {
+      const session = hasSession || (await ensureGuestSession(fullName));
       const res = await fetch(`/api/webinars/${webinar.id}/register`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -114,7 +140,7 @@ function RegisterForm({
         setError(emailError ? "Enter a valid email address." : (json?.error?.message ?? "Registration failed. Please try again."));
         return;
       }
-      onDone(json.data.status);
+      onDone({ status: json.data.status, joinPath: json.data.joinPath ?? null, hasSession: session });
     } catch {
       setError("Network error. Check your connection and try again.");
     } finally {
@@ -239,7 +265,7 @@ function RegisterForm({
   );
 }
 
-function Success({ webinar, status, signedIn }: { webinar: Webinar; status: RegistrationStatus; signedIn: boolean }) {
+function Success({ webinar, status, joinPath, hasSession }: { webinar: Webinar } & Result) {
   // This can be server-rendered for returning registrants; read the origin only after mount.
   const mounted = useMounted();
   const event = {
@@ -261,7 +287,8 @@ function Success({ webinar, status, signedIn }: { webinar: Webinar; status: Regi
   }
 
   const approved = status === "approved";
-  const canJoin = approved && signedIn && (webinar.status === "scheduled" || webinar.status === "live");
+  const open = webinar.status === "scheduled" || webinar.status === "live";
+  const canJoin = approved && hasSession && open;
 
   return (
     <div className="text-center">
@@ -300,7 +327,16 @@ function Success({ webinar, status, signedIn }: { webinar: Webinar; status: Regi
             </Button>
           </div>
         )}
-        {approved && !signedIn && (
+        {approved && open && joinPath && (
+          <div className="mt-2 rounded-lg border bg-muted/40 p-3 text-left">
+            <p className="text-xs font-medium">Your personal join link</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Save it to join from any device. It&apos;s yours alone, so don&apos;t share it.
+            </p>
+            <CopyButton value={joinPath} size="sm" className="mt-2 w-full" label="Copy join link" />
+          </div>
+        )}
+        {approved && !hasSession && (
           <p className="mt-2 text-xs text-muted-foreground">
             To chat and ask questions live,{" "}
             <Link href={`/signup`} className="text-foreground underline-offset-4 hover:underline">

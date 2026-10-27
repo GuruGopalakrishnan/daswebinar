@@ -58,6 +58,7 @@ export type RegistrationRow = {
   full_name: string;
   status: RegistrationStatus;
   answers: Record<string, string | boolean>;
+  join_token: string;
   created_at: string;
   updated_at: string;
 };

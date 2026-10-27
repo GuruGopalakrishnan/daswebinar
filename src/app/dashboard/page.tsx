@@ -1,13 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowUpRight, CalendarClock, Plus, Radio, Users, Video } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Plus, Radio, Sparkles, Users, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Reveal } from "@/components/motion";
 import { WebinarList, type WebinarListItem } from "@/components/dashboard/webinar-list";
 import { requireUser } from "@/lib/auth";
 import { listHostWebinars } from "@/lib/webinars/queries";
+import { getMyPlan } from "@/lib/billing/server";
+import { FREE_ATTENDEE_LIMIT, PRO_PRICE_INR, formatInr } from "@/lib/billing/plans";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { requestTime } from "@/lib/request-time";
 
@@ -25,7 +27,9 @@ export default function DashboardPage() {
 
 async function DashboardContent() {
   const user = await requireUser("/dashboard");
-  const webinars = await listHostWebinars(user.id);
+  const [webinars, plan] = await Promise.all([listHostWebinars(user.id), getMyPlan()]);
+  // Free plan: one webinar. Mirrors the database rule (see migrations).
+  const atFreeLimit = plan.plan === "free" && (plan.webinarCount > 0 || plan.webinarsRun > 0);
   const now = await requestTime();
   const firstName =
     ((user.user_metadata?.full_name as string | undefined) ?? "").trim().split(/\s+/)[0] || "there";
@@ -67,12 +71,43 @@ async function DashboardContent() {
               : "Nothing scheduled yet — create a webinar to get started."}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/webinars/new">
-            <Plus /> New webinar
-          </Link>
-        </Button>
+        {atFreeLimit ? (
+          <Button asChild variant="outline">
+            <Link href="/dashboard/billing">
+              <Sparkles /> Upgrade for more webinars
+            </Link>
+          </Button>
+        ) : (
+          <Button asChild>
+            <Link href="/dashboard/webinars/new">
+              <Plus /> New webinar
+            </Link>
+          </Button>
+        )}
       </Reveal>
+
+      {plan.plan === "free" && (
+        <Reveal>
+          <Link
+            href="/dashboard/billing"
+            className="group flex flex-col gap-3 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/40 sm:flex-row sm:items-center"
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Sparkles className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{atFreeLimit ? "You've used your free webinar" : "You're on the free plan"}</p>
+              <p className="text-sm text-muted-foreground">
+                Free includes 1 webinar with up to {FREE_ATTENDEE_LIMIT} attendees. Pro is {formatInr(PRO_PRICE_INR)}/month
+                for unlimited webinars and attendees.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
+              See Pro <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </span>
+          </Link>
+        </Reveal>
+      )}
 
       {live[0] && (
         <Reveal>
