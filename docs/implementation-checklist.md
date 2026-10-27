@@ -27,7 +27,7 @@ already original (not a WebinarGG or Zoom copy), and Zoom's *behaviours* were ad
 | # | Issue | Impact | Status |
 |---|---|---|---|
 | B1 | **Guest registrants could never join the live room.** They were told to create an account, log in and register again | Biggest attendance leak in the funnel | **Fixed** (guest join, see README) |
-| B2 | **No email at all**: no confirmation with the join link, no reminders, no "we're live", no replay email | Attendance on webinar platforms depends on reminders. Without them, show-up rates will be low | Next (P0) |
+| B2 | **No email at all**: no confirmation with the join link, no reminders, no "we're live", no replay email | Attendance on webinar platforms depends on reminders. Without them, show-up rates will be low | **Fixed** (Resend; needs keys + scheduler) |
 | B3 | Local `.env.local` has no `AGORA_APP_ID`/`AGORA_APP_CERTIFICATE`, Razorpay keys or `SUPABASE_SERVICE_ROLE_KEY`. It still lists the old `NEXT_PUBLIC_SOCKET_URL` and `NEXT_PUBLIC_AGORA_APP_ID` (the code reads `AGORA_APP_ID`) | Video and billing return 503 in local dev | Needs your keys |
 | B4 | Replays need a manual upload to YouTube/Drive and a pasted link | Friction for every webinar | P1 |
 | B5 | No host analytics (attendance rate, watch time, poll/Q&A export) | Coaches can't measure or follow up | P1 |
@@ -58,8 +58,8 @@ Priorities: **P0** before charging customers · **P1** what makes it premium and
 ### P0: reliability and attendance
 - [x] Guest join: register and join without an account; personal `/join/<token>` links; host can copy each attendee's link
 - [ ] Apply migration `20261028000000_guest_join.sql` (`npx supabase db push`) and enable anonymous sign-ins
-- [ ] Transactional email (Resend or Postmark): confirmation with join link + .ics, reminders at 24 h / 1 h / 10 min, "we're live", replay
-- [ ] Scheduled jobs for reminders (Supabase `pg_cron` + Edge Function, or Vercel Cron)
+- [x] Email via Resend: confirmation with join link + .ics, 24 h and 1 h reminders, "we're live" (replay email still to do)
+- [x] Scheduled job endpoint `/api/cron/emails` (schedule it with Supabase pg_cron, see README)
 - [ ] Bot protection: Cloudflare Turnstile on register, login and sign-up; then Supabase CAPTCHA on
 - [ ] Commit the current working tree
 

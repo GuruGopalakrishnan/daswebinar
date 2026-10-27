@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { dbError, handler, parseBody, parseId } from "@/lib/api/http";
+import { notifyRegistrationApproved } from "@/lib/email/notify";
+import { getSiteUrl } from "@/lib/site-url";
 import { registerSchema } from "@/lib/webinars/schema";
 import type { RegistrationStatus } from "@/lib/webinars/types";
 
@@ -25,6 +27,12 @@ export const POST = handler<Ctx>(async (request, ctx) => {
   if (error) throw dbError(error);
 
   const [row] = data as { registration_id: string; registration_status: RegistrationStatus }[];
+
+  // Repeat registrations are no-ops here: email_log sends the confirmation once.
+  if (row.registration_status === "approved") {
+    const siteUrl = await getSiteUrl();
+    after(() => notifyRegistrationApproved(row.registration_id, siteUrl));
+  }
 
   // RLS only returns the row if the caller (account or guest session) owns it,
   // so a typed-in email never reveals someone else's join link.

@@ -182,6 +182,49 @@ Attendees don't need an account (`supabase/migrations/20261028000000_guest_join.
 
 If anonymous sign-ins are off, registration still works as before; guests just can't join the room.
 
+## Email notifications (Resend)
+
+| Email | When | Sent from |
+|---|---|---|
+| Confirmation (+ `.ics` file) | Registration approved: right away, or when the host approves | register / approve API, via `after()` |
+| 24 h reminder | 1–24 h before the start, to people who registered ≥ 22 h before | scheduled job |
+| 1 h reminder | Within the hour before the start, to people who registered ≥ 90 min before | scheduled job |
+| We're live | Host presses **Go live** (the job catches up for 30 min if that send failed) | start API, via `after()` |
+
+Every email carries the attendee's **personal join link** (`/join/<token>`), so one click puts them in the room
+with no login. Code: `src/lib/email/` (`resend.ts` client, `templates.ts`, `notify.ts`).
+
+**Sent once, never twice.** `email_log` (migration `20261029000000_email_notifications.sql`) has one row per
+(registration, kind). A sender claims rows first, sends only what it claimed, and releases them if Resend fails, so
+the next run retries. Resend's `Idempotency-Key` covers retried requests. Emails never block or break registering or
+going live; failures are logged.
+
+**Setup**
+
+1. Resend → **Domains**: add and verify your domain (DNS records). Then set `RESEND_API_KEY`,
+   `EMAIL_FROM="Onstage <hello@yourdomain.com>"` and `SUPABASE_SERVICE_ROLE_KEY` (in Vercel too).
+   Before the domain is verified, `onboarding@resend.dev` works but only delivers to your own Resend address.
+2. Set `CRON_SECRET` to a long random string.
+3. Call `/api/cron/emails` every 5 minutes. Vercel's free plan only runs crons once a day, so use Supabase
+   (free) in the **SQL Editor**:
+
+   ```sql
+   create extension if not exists pg_cron;
+   create extension if not exists pg_net;
+   select cron.schedule('webinar-emails', '*/5 * * * *', $$
+     select net.http_post(
+       url := 'https://yourdomain.com/api/cron/emails',
+       headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'),
+       timeout_milliseconds := 60000
+     );
+   $$);
+   ```
+
+   Check runs with `select * from cron.job_run_details order by start_time desc limit 10;`, and stop with
+   `select cron.unschedule('webinar-emails');`.
+4. Test locally: `curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/emails` returns
+   how many reminders went out.
+
 ## Realtime protocol details
 
 The room runs entirely on the Supabase project, so there's no separate server to deploy. The schema,

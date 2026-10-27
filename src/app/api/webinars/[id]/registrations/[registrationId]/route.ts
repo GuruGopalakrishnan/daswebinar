@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { notifyRegistrationApproved } from "@/lib/email/notify";
+import { getSiteUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import {
   dbError,
@@ -33,6 +35,11 @@ export const PATCH = handler<Ctx>(async (request, ctx) => {
     .overrideTypes<RegistrationRow[], { merge: false }>();
   if (error) throw dbError(error);
   if (data.length === 0) throw notFound();
+
+  if (status === "approved") {
+    const siteUrl = await getSiteUrl();
+    after(() => notifyRegistrationApproved(registrationId, siteUrl));
+  }
 
   return NextResponse.json({ data: toRegistrationDto(data[0]) });
 });
