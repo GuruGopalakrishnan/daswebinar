@@ -72,6 +72,8 @@ export default function HomePage() {
           </div>
           <div className="min-w-0">
             <HeroScene />
+            {/* The hero's last step previews offer cards, which aren't built yet. */}
+            <p className="mt-3 text-center text-xs text-muted-foreground">Step 5 previews offer cards, which are coming soon.</p>
           </div>
         </Wrap>
       </section>
