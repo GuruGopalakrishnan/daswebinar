@@ -32,7 +32,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string | null; onNavigat
     <div className="flex flex-col gap-4">
       {DASHBOARD_NAV.map((group, gi) => (
         <div key={gi} className="flex flex-col gap-1">
-          {group.label && <p className="overline px-2.5">{group.label}</p>}
+          {group.label && <p className="eyebrow px-2.5">{group.label}</p>}
           <nav aria-label={group.label ?? "Main"} className="flex flex-col gap-0.5">
             {group.items.map(({ href, label, icon: Icon, isActive }) => {
               const active = pathname !== null && isActive(pathname);

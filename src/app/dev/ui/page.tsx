@@ -40,7 +40,7 @@ export default function UiGalleryPage() {
       </header>
 
       <Section title="Typography">
-        <p className="overline">Overline label</p>
+        <p className="eyebrow">Overline label</p>
         <p className="t-display">Host better webinars.</p>
         <p className="t-h1">Heading one</p>
         <p className="t-h2">Heading two</p>

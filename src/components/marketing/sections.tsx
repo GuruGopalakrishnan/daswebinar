@@ -49,7 +49,7 @@ export function SectionHead({
 }) {
   return (
     <div className={cn("mb-12 flex max-w-[680px] flex-col gap-3", center && "mx-auto items-center text-center", className)}>
-      {overline && <span className="overline">{overline}</span>}
+      {overline && <span className="eyebrow">{overline}</span>}
       <H id={id} className="t-h1">
         {title}
       </H>
@@ -92,7 +92,7 @@ export function FeatureSplit({
   const copy = (
     <div className="flex min-w-0 flex-col gap-4">
       <span className="flex flex-wrap items-center gap-2">
-        <span className="overline">{overline}</span>
+        <span className="eyebrow">{overline}</span>
         {soon && <ComingSoon />}
       </span>
       <h2 className="t-h1">{title}</h2>

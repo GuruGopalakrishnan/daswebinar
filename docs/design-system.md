@@ -29,7 +29,7 @@ Geist only (Geist Mono for codes and IDs). Utility classes in `globals.css`:
 | `t-h3` | 20/28 | 600 | Card titles |
 | `t-title` | 16/24 | 600 | List item titles |
 | `t-lead` | 18/28, muted | 400 | Intro paragraph under a title |
-| `overline` | 11/16 uppercase, tracked | 600 | Eyebrow labels |
+| `eyebrow` | 11/16 uppercase, tracked | 600 | Eyebrow labels (prototype `.overline`; renamed because Tailwind's `overline` draws a line) |
 | Body | 14/20 in the app, 16/24 on public pages | 400 | `text-pretty` for paragraphs |
 | Numbers | `tabular-nums` | | Stats, countdowns, timers |
 

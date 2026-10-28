@@ -93,7 +93,7 @@ export default function FeaturesPage() {
       <Section alt>
         <div className="grid grid-cols-[minmax(0,1fr)] items-center gap-8 lg:grid-cols-2 lg:gap-14">
           <div className="flex flex-col gap-4">
-            <span className="overline">The studio</span>
+            <span className="eyebrow">The studio</span>
             <h2 className="t-h1">A calm studio for teaching</h2>
             <p className="t-lead text-pretty">
               Share your slides or screen with your camera in the corner, spotlight a question, and put a poll on everyone&apos;s screen.
