@@ -12,6 +12,8 @@ and Razorpay (subscriptions). All code here is original. The brand name lives in
 | `/verify-email` | "Check your inbox" with a resend button for accounts waiting on email confirmation |
 | `/forgot-password`, `/reset-password` | Password reset. Expired or other-browser links land on `/forgot-password?error=link` |
 | `/webinars/create`, `/billing`, `/billing/checkout`, `/recordings` | Aliases from the Deploy & Grow prototype (307 to the real routes, `next.config.ts`) |
+| `/e/[slug]` | Friendly event link for **public** webinars (needs migration `20261030000000_event_slugs.sql`); same page as `/register/[id]` |
+| `/my-events` | The visitor's own registrations (account or guest session) |
 | `/dashboard` | Stats, plan banner, webinar list |
 | `/dashboard/webinars/new`, `…/[id]/edit` | 5-step wizard |
 | `/dashboard/webinars/[id]` | Manage page: share link, registrations, recordings (by URL) |
