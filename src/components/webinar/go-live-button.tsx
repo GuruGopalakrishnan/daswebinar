@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Radio, Video } from "lucide-react";
+import { Radio, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { WebinarStatus } from "@/lib/webinars/types";
@@ -15,7 +15,7 @@ export function GoLiveButton({ webinarId, status }: { webinarId: string; status:
 
   if (status === "live") {
     return (
-      <Button asChild className="bg-live text-white hover:bg-live/90">
+      <Button asChild cta className="bg-live text-white hover:bg-live/90">
         <Link href={`/room/${webinarId}`}>
           <Radio /> Return to live room
         </Link>
@@ -43,8 +43,8 @@ export function GoLiveButton({ webinarId, status }: { webinarId: string; status:
   }
 
   return (
-    <Button onClick={openRoom} disabled={pending}>
-      {pending ? <Loader2 className="animate-spin" /> : <Video />}
+    <Button cta onClick={openRoom} loading={pending}>
+      {!pending && <Video />}
       {status === "draft" ? "Publish & open room" : "Open green room"}
     </Button>
   );
