@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ChevronLeft, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -14,11 +15,13 @@ export const metadata: Metadata = { title: "New webinar" };
 
 export default function NewWebinarPage() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <Link href="/dashboard" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="size-4" /> Dashboard
-      </Link>
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">Create a webinar</h1>
+    <div className="mx-auto w-full max-w-[1264px] px-4 py-7 md:px-8">
+      <PageHeader
+        className="mb-6"
+        crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Create webinar" }]}
+        title="Create a webinar"
+        description="Five short steps. On the last one you can publish it or save it as a draft."
+      />
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <NewWebinarContent />
       </Suspense>
@@ -35,14 +38,14 @@ async function NewWebinarContent() {
 
   if (atLimit) {
     return (
-      <div className="rounded-2xl border bg-card shadow-card">
+      <div className="rounded-xl border border-border/85 bg-card shadow-card">
         <EmptyState
           icon={Sparkles}
           title="You've used your free webinar"
           description="The Free plan includes one webinar. Upgrade to Pro to create as many as you like, with unlimited attendees."
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Button asChild>
+              <Button asChild cta>
                 <Link href="/upgrade">
                   <Sparkles /> See Pro
                 </Link>

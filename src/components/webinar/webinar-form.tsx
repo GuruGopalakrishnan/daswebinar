@@ -8,13 +8,11 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
-  Check,
   ChevronDown,
   Eye,
   EyeOff,
   GripVertical,
   ListChecks,
-  Loader2,
   Lock,
   Plus,
   SquareCheck,
@@ -33,6 +31,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UpgradeDialog, type UpgradeReason } from "@/components/billing/upgrade-dialog";
+import { WizardProgress, WizardSteps } from "@/components/blocks/choices";
+import { WizardScene, type WizardSceneData } from "@/components/motion-graphics/wizard-scene";
 import { useMounted } from "@/hooks/use-client-values";
 import { cn } from "@/lib/utils";
 import { allTimeZones, browserTimeZone, utcToZoned, zoneOffsetLabel, zonedToUtcIso } from "@/lib/time";
@@ -63,6 +63,9 @@ const STEPS = [
   { id: "form", label: "Registration form" },
   { id: "review", label: "Review" },
 ] as const;
+
+/** Which prototype illustration accompanies each step (details and schedule share the event card). */
+const SCENE_FOR_STEP = [1, 1, 2, 3, 5] as const;
 
 const DURATIONS = [30, 45, 60, 90, 120];
 
@@ -257,50 +260,41 @@ function WebinarFormSteps({ webinar }: { webinar?: WebinarDto }) {
   }
 
   const isLast = step === STEPS.length - 1;
+  const sceneData = useMemo<WizardSceneData>(() => {
+    let dateLabel: string | undefined;
+    try {
+      // Short form ("Thu, 29 Oct") so it fits the illustration's date chip.
+      dateLabel = state.date
+        ? new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: state.timezone }).format(
+            new Date(zonedToUtcIso(state.date, state.time, state.timezone)),
+          )
+        : undefined;
+    } catch {
+      dateLabel = undefined;
+    }
+    return { title: state.title, dateLabel, capacity: state.capacityEnabled ? Number(state.capacity) || null : null };
+  }, [state.title, state.date, state.time, state.timezone, state.capacityEnabled, state.capacity]);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8">
       <UpgradeDialog reason={upgradeReason} onOpenChange={(open) => !open && setUpgradeReason(null)} />
-      {/* Step rail */}
-      <nav aria-label="Steps" className="lg:sticky lg:top-20 lg:self-start">
-        <ol className="flex gap-1 overflow-x-auto lg:flex-col scrollbar-thin">
-          {STEPS.map((s, i) => {
-            const done = i < step;
-            const current = i === step;
-            return (
-              <li key={s.id} className="shrink-0">
-                <button
-                  type="button"
-                  onClick={() => goTo(i)}
-                  aria-current={current ? "step" : undefined}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                    current ? "bg-accent font-medium" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs transition-colors",
-                      done && "border-primary bg-primary text-primary-foreground",
-                      current && "border-primary text-primary",
-                    )}
-                  >
-                    {done ? <Check className="size-3.5" /> : i + 1}
-                  </span>
-                  <span className="whitespace-nowrap">{s.label}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-        <div className="mt-4 hidden h-1 overflow-hidden rounded-full bg-muted lg:block">
-          <motion.div className="h-full bg-primary" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
-        </div>
-      </nav>
+      {/* Step list + illustration (sticky on desktop) */}
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[88px] lg:self-start">
+        <nav aria-label="Steps" className="hidden lg:block">
+          <WizardSteps steps={STEPS.map((s) => ({ label: s.label }))} current={step} onSelect={goTo} />
+        </nav>
+        <WizardScene step={SCENE_FOR_STEP[step]} data={sceneData} />
+      </div>
 
       {/* Step body */}
       <div className="min-w-0">
-        <div className="relative overflow-hidden rounded-xl border bg-card">
+        <div className="relative rounded-xl border border-border/85 bg-card shadow-card">
+          <div className="px-6 pt-6 sm:px-8">
+            <p className="mb-3 text-xs text-muted-foreground lg:hidden" aria-live="polite">
+              Step {step + 1} of {STEPS.length} · {STEPS[step].label}
+            </p>
+            <WizardProgress current={step} total={STEPS.length} />
+          </div>
           <AnimatePresence mode="wait" custom={direction} initial={false}>
             <motion.div
               key={step}
@@ -319,26 +313,25 @@ function WebinarFormSteps({ webinar }: { webinar?: WebinarDto }) {
             </motion.div>
           </AnimatePresence>
 
-          <div className="flex items-center justify-between gap-2 border-t bg-muted/30 px-6 py-4 sm:px-8">
+          {/* Sticky footer: one primary action per step (prototype wiz-foot). */}
+          <div className="sticky bottom-0 z-[3] flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t bg-card px-6 py-4 max-md:px-4 max-md:pb-[calc(12px+env(safe-area-inset-bottom))] sm:px-8">
             <Button type="button" variant="ghost" onClick={() => goTo(step - 1)} disabled={step === 0 || submitting !== null}>
               <ArrowLeft /> Back
             </Button>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isLast ? (
                 <>
                   {(!editing || webinar?.status === "draft") && (
-                    <Button type="button" variant="outline" onClick={() => submit("draft")} disabled={submitting !== null}>
-                      {submitting === "draft" && <Loader2 className="animate-spin" />}
+                    <Button type="button" variant="outline" onClick={() => submit("draft")} disabled={submitting !== null} loading={submitting === "draft"}>
                       Save as draft
                     </Button>
                   )}
-                  <Button type="button" onClick={() => submit("scheduled")} disabled={submitting !== null}>
-                    {submitting === "scheduled" && <Loader2 className="animate-spin" />}
+                  <Button type="button" cta onClick={() => submit("scheduled")} disabled={submitting !== null} loading={submitting === "scheduled"}>
                     {editing && webinar?.status !== "draft" ? "Save changes" : "Schedule webinar"}
                   </Button>
                 </>
               ) : (
-                <Button type="button" onClick={() => goTo(step + 1)}>
+                <Button type="button" cta onClick={() => goTo(step + 1)}>
                   Continue <ArrowRight />
                 </Button>
               )}
