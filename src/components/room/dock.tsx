@@ -11,8 +11,10 @@ import {
   LogOut,
   MessageCircleQuestion,
   MessageSquare,
+  FlaskConical,
   Mic,
   MicOff,
+  MicVocal,
   MonitorUp,
   MoreHorizontal,
   PhoneOff,
@@ -127,7 +129,16 @@ function Divider() {
 
 type Props = {
   isHost: boolean;
+  /** Host or panelist: mic and camera controls. */
+  canPublish: boolean;
   status: WebinarStatus;
+  /** Host: practice session running. */
+  practice: boolean;
+  /** Attendee: has an open request to speak. */
+  speakRequested: boolean;
+  onToggleSpeak: () => void;
+  onTogglePractice: () => void;
+  practiceBusy: boolean;
   media: LocalMedia;
   micLevel: number;
   handRaised: boolean;
@@ -157,7 +168,7 @@ export function Dock(p: Props) {
 
   return (
     <div className="glass flex max-w-[calc(100vw-1.5rem)] items-center gap-0.5 overflow-x-auto rounded-full p-1.5 shadow-2xl sm:gap-1 sm:overflow-visible">
-      {p.isHost && (
+      {p.canPublish && (
         <>
           <div className="flex items-center">
             <DockButton
@@ -188,7 +199,7 @@ export function Dock(p: Props) {
             </DockButton>
             <DeviceMenu kind="camera" media={media} />
           </div>
-          {media.canShareScreen && (
+          {p.isHost && media.canShareScreen && (
             <DockButton
               label={media.screen ? "Stop presenting" : "Present screen"}
               shortcut="S"
@@ -253,6 +264,16 @@ export function Dock(p: Props) {
         </Popover>
       )}
 
+      {!p.canPublish && p.status !== "ended" && (
+        <DockButton
+          label={p.speakRequested ? "Cancel request to speak" : "Ask to speak"}
+          onClick={p.onToggleSpeak}
+          className={cn(p.speakRequested && "bg-primary text-primary-foreground hover:bg-primary/90")}
+        >
+          <MicVocal />
+        </DockButton>
+      )}
+
       {!p.isHost && p.handRaiseEnabled && (
         <DockButton
           label={p.handRaised ? "Lower hand" : "Raise hand"}
@@ -314,6 +335,21 @@ export function Dock(p: Props) {
 
       <Divider />
 
+      {p.isHost && !live && p.status !== "ended" && (
+        <Button
+          onClick={p.onTogglePractice}
+          disabled={p.practiceBusy}
+          variant="ghost"
+          aria-pressed={p.practice}
+          aria-label={p.practice ? "End practice" : "Start practice"}
+          className={cn(
+            "h-11 shrink-0 rounded-full px-3 text-white hover:bg-white/10 hover:text-white sm:px-4",
+            p.practice && "bg-white/15",
+          )}
+        >
+          <FlaskConical /> <span className="hidden sm:inline">{p.practice ? "End practice" : "Practice"}</span>
+        </Button>
+      )}
       {p.isHost && !live && p.status !== "ended" && (
         <Button onClick={p.onGoLive} disabled={p.goingLive} className="h-11 shrink-0 rounded-full bg-live px-5 text-white hover:bg-live/90">
           <Radio /> Go live

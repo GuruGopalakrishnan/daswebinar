@@ -79,6 +79,14 @@ PreJoin (device check)  →  Studio
   connection, opened only while presenting), so attendees see slides and presenter together. Dual stream plus
   attendee fallback to the low stream on weak networks. Mute = unpublish. Automatic rejoin with backoff after
   disconnects and token expiry. Network quality is surfaced in the UI.
+- **Roles and panelists** (`supabase/migrations/20261030000000_panelists_practice.sql`): **host** (full control),
+  **panelist** (mic + camera, no admin controls), **attendee** (view only: chat, Q&A, polls, reactions, raise hand,
+  ask to speak). The host promotes someone from People (or accepts their request to speak) and the database gives
+  them a fixed stage uid (100–105, max 6). `/api/webinars/:id/rtc-token` checks the role with `get_room_access()` and
+  only issues publisher credentials to the host and current panelists. Every client plays only the host's uids and
+  the current panelists' uids, so a demoted or removed panelist is dropped from every screen immediately.
+- **Practice mode:** before going live the host can start a practice session. The host and panelists are on air
+  together; attendees stay in the waiting room and get no video credentials. Going live ends practice.
 - **Realtime (Supabase):** chat, Q&A (answered state, on-stage spotlight), polls, hand raise, settings and attendee
   removal all go through `security definer` functions. Reactions are batched per sender (at most one message every 1.5 s).
 - **Zoom research** and what was adopted: [`docs/zoom-research.md`](docs/zoom-research.md).

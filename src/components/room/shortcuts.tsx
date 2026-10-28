@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export type ShortcutHandlers = Partial<Record<"mic" | "camera" | "screen" | "hand" | "chat" | "qna" | "polls" | "people" | "record" | "help" | "escape", () => void>> & {
+export type ShortcutHandlers = Partial<Record<"mic" | "camera" | "screen" | "hand" | "chat" | "qna" | "polls" | "people" | "record" | "fullscreen" | "help" | "escape", () => void>> & {
   react?: (index: number) => void;
   /** Push to talk: called with true while Space is held (host, muted), false on release. */
   pushToTalk?: (down: boolean) => void;
@@ -19,6 +19,7 @@ const KEYS: Record<string, keyof ShortcutHandlers> = {
   p: "polls",
   u: "people",
   r: "record",
+  f: "fullscreen",
   "?": "help",
   Escape: "escape",
 };
@@ -67,10 +68,11 @@ export function useShortcuts(handlers: ShortcutHandlers) {
   }, []);
 }
 
-const LIST: { keys: string; label: string; host?: boolean; attendee?: boolean }[] = [
-  { keys: "M", label: "Mute / unmute", host: true },
-  { keys: "Space", label: "Hold to talk while muted", host: true },
-  { keys: "V", label: "Start / stop video", host: true },
+// host: host only. stage: host and panelists. attendee: everyone but the host.
+const LIST: { keys: string; label: string; host?: boolean; stage?: boolean; attendee?: boolean }[] = [
+  { keys: "M", label: "Mute / unmute", stage: true },
+  { keys: "Space", label: "Hold to talk while muted", stage: true },
+  { keys: "V", label: "Start / stop video", stage: true },
   { keys: "S", label: "Present screen", host: true },
   { keys: "R", label: "Start / stop recording", host: true },
   { keys: "H", label: "Raise / lower hand", attendee: true },
@@ -79,11 +81,22 @@ const LIST: { keys: string; label: string; host?: boolean; attendee?: boolean }[
   { keys: "Q", label: "Q&A" },
   { keys: "P", label: "Polls" },
   { keys: "U", label: "People" },
+  { keys: "F", label: "Fullscreen" },
   { keys: "Esc", label: "Close panel" },
   { keys: "?", label: "Show shortcuts" },
 ];
 
-export function ShortcutsDialog({ open, onOpenChange, isHost }: { open: boolean; onOpenChange: (o: boolean) => void; isHost: boolean }) {
+export function ShortcutsDialog({
+  open,
+  onOpenChange,
+  isHost,
+  canPublish,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  isHost: boolean;
+  canPublish: boolean;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
@@ -92,7 +105,7 @@ export function ShortcutsDialog({ open, onOpenChange, isHost }: { open: boolean;
           <DialogDescription>They work anywhere in the room except while typing.</DialogDescription>
         </DialogHeader>
         <ul className="grid gap-1 text-sm">
-          {LIST.filter((s) => (isHost ? !s.attendee : !s.host)).map((s) => (
+          {LIST.filter((s) => (isHost ? !s.attendee : !s.host && (!s.stage || canPublish))).map((s) => (
             <li key={s.label} className="flex items-center justify-between rounded-md px-1 py-1.5">
               {s.label}
               <kbd className="rounded-md border bg-muted px-2 py-0.5 font-mono text-xs">{s.keys}</kbd>

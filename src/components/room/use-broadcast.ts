@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   IAgoraRTC,
   IAgoraRTCClient,
+  IAgoraRTCRemoteUser,
   ILocalAudioTrack,
   ILocalVideoTrack,
   IRemoteAudioTrack,
@@ -13,34 +14,48 @@ import type {
 import type { RtcCredentials } from "@/lib/agora/types";
 
 /**
- * idle: not live. unavailable: Agora isn't configured on the server.
- * The host publishes; attendees join as audience and only play the host's uids.
+ * idle: not on air. unavailable: Agora isn't configured on the server.
+ * The host and panelists publish; attendees join as audience. Everyone plays
+ * only the host's uids and the current panelists' uids.
  */
 export type BroadcastState = "idle" | "connecting" | "reconnecting" | "connected" | "unavailable" | "error";
+
+/** One remote publisher we render: the host, the host's screen, or a panelist. */
+export type RemoteFeed = { video: IRemoteVideoTrack | null; audio: boolean; level: number };
 
 export type Broadcast = {
   state: BroadcastState;
   error: string | null;
-  /** Attendees: the host's camera, if published. */
+  /** The uid we joined as (host 1, panelist 100–105, attendee random). */
+  selfUid: number | null;
+  hostUid: number;
+  screenUid: number;
+  /** Remote publishers by uid, never including ourselves. */
+  feeds: Record<number, RemoteFeed>;
+  /** The host's camera, if published and we're not the host. */
   hostVideo: IRemoteVideoTrack | null;
-  /** Attendees: the host's screen share, if published. */
+  /** The host's screen share, if published and we're not the host. */
   screenVideo: IRemoteVideoTrack | null;
-  /** Attendees: the host's microphone is live. */
+  /** The host's microphone is live (for non-hosts). */
   hostAudio: boolean;
-  /** Attendees: the browser blocked audio until the user interacts with the page. */
+  /** The browser blocked audio until the user interacts with the page. */
   audioBlocked: boolean;
   unblockAudio: () => void;
-  /** Agora network quality, 0 unknown, 1 excellent … 5 very bad, 6 down. Uplink for the host, downlink for attendees. */
+  /** Agora network quality, 0 unknown, 1 excellent … 5 very bad, 6 down. Uplink for publishers, downlink for attendees. */
   network: number;
-  /** Attendees: playback volume 0–100. */
+  /** Playback volume 0–100. */
   volume: number;
   setVolume: (v: number) => void;
 };
 
 type Options = {
   webinarId: string;
-  isHost: boolean;
-  live: boolean;
+  /** Host or panelist: may publish. Changing it rejoins with new credentials. */
+  canPublish: boolean;
+  /** Live, or practice for the host and panelists. */
+  onAir: boolean;
+  /** Current panelists' Agora uids, from the room state. */
+  stageUids: number[];
   camera: MediaStream | null;
   mic: MediaStream | null;
   micMuted: boolean;
@@ -61,14 +76,71 @@ async function fetchCredentials(webinarId: string): Promise<RtcCredentials> {
   return json.data as RtcCredentials;
 }
 
-const MAX_RETRIES = 8;
+function omit<T>(record: Record<number, T>, key: number): Record<number, T> {
+  const copy = { ...record };
+  delete copy[key];
+  return copy;
+}
 
-export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, screen, speakerId }: Options): Broadcast {
+/** Refs and setters the subscribe helpers need; all stable across renders. */
+type FeedEnv = {
+  stage: { current: Set<number> };
+  audio: { current: Map<UID, IRemoteAudioTrack> };
+  prefs: { current: { volume: number; speakerId: string | null } };
+  setVideos: React.Dispatch<React.SetStateAction<Record<number, IRemoteVideoTrack>>>;
+  setAudios: React.Dispatch<React.SetStateAction<Record<number, true>>>;
+};
+
+/** Only the host's uids and current panelists are ever played; never ourselves. */
+function watched(env: FeedEnv, creds: RtcCredentials, uid: number) {
+  if (uid === creds.uid) return false;
+  return uid === creds.hostUid || uid === creds.screenUid || env.stage.current.has(uid);
+}
+
+async function attach(env: FeedEnv, client: IAgoraRTCClient, creds: RtcCredentials, user: IAgoraRTCRemoteUser, mediaType: "audio" | "video") {
+  const uid = Number(user.uid);
+  if (!watched(env, creds, uid)) return;
+  try {
+    await client.subscribe(user, mediaType);
+  } catch {
+    return;
+  }
+  if (mediaType === "video" && user.videoTrack) {
+    const track = user.videoTrack;
+    env.setVideos((v) => ({ ...v, [uid]: track }));
+    // Drop to the low stream rather than stall when bandwidth dips.
+    if (uid !== creds.screenUid) void client.setStreamFallbackOption(user.uid, 1).catch(() => {});
+  }
+  if (mediaType === "audio" && user.audioTrack) {
+    const track = user.audioTrack;
+    env.audio.current.set(uid, track);
+    track.setVolume(env.prefs.current.volume);
+    if (env.prefs.current.speakerId) void track.setPlaybackDevice?.(env.prefs.current.speakerId).catch(() => {});
+    track.play();
+    env.setAudios((a) => ({ ...a, [uid]: true }));
+  }
+}
+
+function detach(env: FeedEnv, uid: number, mediaType?: "audio" | "video") {
+  if (mediaType !== "audio") env.setVideos((v) => omit(v, uid));
+  if (mediaType !== "video") {
+    env.audio.current.get(uid)?.stop();
+    env.audio.current.delete(uid);
+    env.setAudios((a) => omit(a, uid));
+  }
+}
+
+const MAX_RETRIES = 8;
+// Matches HOST_UID / HOST_SCREEN_UID in src/lib/agora/server.ts; replaced by the credentials once joined.
+const DEFAULT_HOST_UID = 1;
+const DEFAULT_SCREEN_UID = 2;
+
+export function useBroadcast({ webinarId, canPublish, onAir, stageUids, camera, mic, micMuted, screen, speakerId }: Options): Broadcast {
   const [phase, setPhase] = useState<Exclude<BroadcastState, "idle"> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hostVideo, setHostVideo] = useState<IRemoteVideoTrack | null>(null);
-  const [screenVideo, setScreenVideo] = useState<IRemoteVideoTrack | null>(null);
-  const [hostAudio, setHostAudio] = useState(false);
+  const [videos, setVideos] = useState<Record<number, IRemoteVideoTrack>>({});
+  const [audios, setAudios] = useState<Record<number, true>>({});
+  const [levels, setLevels] = useState<Record<number, number>>({});
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [network, setNetwork] = useState(0);
   const [volume, setVolume] = useState(100);
@@ -83,6 +155,12 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
   const prefs = useRef({ volume, speakerId });
   // Publish/unpublish calls are serialized so quick toggles can't interleave.
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const stageKey = [...stageUids].sort((a, b) => a - b).join(",");
+  const stageRef = useRef(new Set(stageUids));
+  const env = useMemo<FeedEnv>(
+    () => ({ stage: stageRef, audio: remoteAudioRef, prefs, setVideos, setAudios }),
+    [],
+  );
 
   useEffect(() => {
     prefs.current = { volume, speakerId };
@@ -94,7 +172,7 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
 
   // --- join / leave ---------------------------------------------------------
   useEffect(() => {
-    if (!live) return;
+    if (!onAir) return;
     let cancelled = false;
     let client: IAgoraRTCClient | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -110,13 +188,6 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
       retryTimer = setTimeout(() => setAttempt((a) => a + 1), delay);
     };
 
-    const playAudio = (uid: UID, track: IRemoteAudioTrack) => {
-      remoteAudioRef.current.set(uid, track);
-      track.setVolume(prefs.current.volume);
-      if (prefs.current.speakerId) void track.setPlaybackDevice?.(prefs.current.speakerId).catch(() => {});
-      track.play();
-    };
-
     (async () => {
       const { default: AgoraRTC } = await import("agora-rtc-sdk-ng");
       AgoraRTC.setLogLevel(3);
@@ -124,15 +195,15 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
       if (cancelled) return;
 
       client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
-      if (creds.role === "host") {
+      if (creds.role !== "audience") {
         await client.setClientRole("host");
-        // A small second stream lets attendees on weak networks fall back to it
+        // A small second stream lets viewers on weak networks fall back to it
         // instead of freezing.
         try {
           await client.enableDualStream();
           client.setLowStreamParameter({ width: 320, height: 180, framerate: 15, bitrate: 200 });
         } catch {
-          // Not supported on this browser; attendees get the single stream.
+          // Not supported on this browser; viewers get the single stream.
         }
       } else {
         await client.setClientRole("audience", { level: 1 /* low latency */ });
@@ -159,55 +230,17 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
         }
       });
       client.on("network-quality", (q) => {
-        setNetwork(creds.role === "host" ? q.uplinkNetworkQuality : q.downlinkNetworkQuality);
+        setNetwork(creds.role === "audience" ? q.downlinkNetworkQuality : q.uplinkNetworkQuality);
       });
 
-      if (creds.role === "audience") {
-        AgoraRTC.onAutoplayFailed = () => setAudioBlocked(true);
-        const watched = new Set<UID>([creds.hostUid, creds.screenUid]);
-
-        client.on("user-published", async (user, mediaType) => {
-          if (!watched.has(user.uid) || !client) return;
-          try {
-            await client.subscribe(user, mediaType);
-          } catch {
-            return;
-          }
-          if (mediaType === "video") {
-            if (user.uid === creds.hostUid) {
-              setHostVideo(user.videoTrack ?? null);
-              // Drop to the low stream rather than stall when bandwidth dips.
-              void client.setStreamFallbackOption(user.uid, 1).catch(() => {});
-            } else {
-              setScreenVideo(user.videoTrack ?? null);
-            }
-          }
-          if (mediaType === "audio" && user.audioTrack) {
-            playAudio(user.uid, user.audioTrack);
-            if (user.uid === creds.hostUid) setHostAudio(true);
-          }
-        });
-        client.on("user-unpublished", (user, mediaType) => {
-          if (!watched.has(user.uid)) return;
-          if (mediaType === "video") {
-            if (user.uid === creds.hostUid) setHostVideo(null);
-            else setScreenVideo(null);
-          }
-          if (mediaType === "audio") {
-            remoteAudioRef.current.delete(user.uid);
-            if (user.uid === creds.hostUid) setHostAudio(false);
-          }
-        });
-        client.on("user-left", (user) => {
-          if (user.uid === creds.hostUid) {
-            setHostVideo(null);
-            setHostAudio(false);
-          } else if (user.uid === creds.screenUid) {
-            setScreenVideo(null);
-          }
-          remoteAudioRef.current.delete(user.uid);
-        });
-      }
+      AgoraRTC.onAutoplayFailed = () => setAudioBlocked(true);
+      client.on("user-published", (user, mediaType) => {
+        if (client && mediaType !== "datachannel") void attach(env, client, creds, user, mediaType);
+      });
+      client.on("user-unpublished", (user, mediaType) => {
+        if (mediaType !== "datachannel") detach(env, Number(user.uid), mediaType);
+      });
+      client.on("user-left", (user) => detach(env, Number(user.uid)));
 
       await client.join(creds.appId, creds.channel, creds.token, creds.uid);
       if (cancelled) {
@@ -231,9 +264,9 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
       cancelled = true;
       clearTimeout(retryTimer);
       setSession(null);
-      setHostVideo(null);
-      setScreenVideo(null);
-      setHostAudio(false);
+      setVideos({});
+      setAudios({});
+      setLevels({});
       setAudioBlocked(false);
       setNetwork(0);
       setPhase(null);
@@ -247,22 +280,52 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
         await leaving?.leave().catch(() => {});
       });
     };
-  }, [webinarId, live, attempt]);
+    // canPublish: a promotion or demotion needs new credentials and client role.
+  }, [webinarId, onAir, canPublish, attempt, env]);
 
   useEffect(() => {
-    if (!live) failures.current = 0;
-  }, [live]);
+    if (!onAir) failures.current = 0;
+  }, [onAir]);
 
-  // --- host: publish whatever the local media currently is -----------------
+  // --- the stage changed: subscribe to new panelists, drop demoted ones -----
   useEffect(() => {
-    if (!isHost || !session) return;
+    stageRef.current = new Set(stageKey ? stageKey.split(",").map(Number) : []);
+    if (!session) return;
+    const { client, creds } = session;
+    for (const user of client.remoteUsers) {
+      const uid = Number(user.uid);
+      if (watched(env, creds, uid)) {
+        if (user.hasVideo && !user.videoTrack) void attach(env, client, creds, user, "video");
+        if (user.hasAudio && !user.audioTrack) void attach(env, client, creds, user, "audio");
+      } else if (user.videoTrack || user.audioTrack) {
+        void client.unsubscribe(user).catch(() => {});
+        detach(env, uid);
+      }
+    }
+  }, [session, stageKey, env]);
+
+  // --- speaking levels for remote audio (cheap polling, ~5×/s) -------------
+  useEffect(() => {
+    if (!session) return;
+    const timer = setInterval(() => {
+      const next: Record<number, number> = {};
+      for (const [uid, track] of remoteAudioRef.current) next[Number(uid)] = Math.round(track.getVolumeLevel() * 10) / 10;
+      setLevels((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    }, 200);
+    return () => clearInterval(timer);
+  }, [session]);
+
+  // --- host / panelist: publish whatever the local media currently is -------
+  useEffect(() => {
+    if (!canPublish || !session || session.creds.role === "audience") return;
     const { rtc, client, creds } = session;
     const want: Record<Slot, MediaStreamTrack | null> = {
       camera: camera?.getVideoTracks()[0] ?? null,
-      // Muted = not published, so attendees see the muted state and no audio is sent.
+      // Muted = not published, so viewers see the muted state and no audio is sent.
       mic: micMuted ? null : (mic?.getAudioTracks()[0] ?? null),
-      screen: screen?.getVideoTracks()[0] ?? null,
-      screenAudio: screen?.getAudioTracks()[0] ?? null,
+      // Only the host has a screen-share connection.
+      screen: creds.screen ? (screen?.getVideoTracks()[0] ?? null) : null,
+      screenAudio: creds.screen ? (screen?.getAudioTracks()[0] ?? null) : null,
     };
 
     // Publish a clone: closing the Agora track stops it, not the local preview.
@@ -316,14 +379,28 @@ export function useBroadcast({ webinarId, isHost, live, camera, mic, micMuted, s
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "Couldn't publish your video.");
       });
-  }, [isHost, session, camera, mic, micMuted, screen]);
+  }, [canPublish, session, camera, mic, micMuted, screen]);
+
+  const hostUid = session?.creds.hostUid ?? DEFAULT_HOST_UID;
+  const screenUid = session?.creds.screenUid ?? DEFAULT_SCREEN_UID;
+  const feeds = useMemo(() => {
+    const out: Record<number, RemoteFeed> = {};
+    for (const uid of new Set([...Object.keys(videos), ...Object.keys(audios)].map(Number))) {
+      out[uid] = { video: videos[uid] ?? null, audio: Boolean(audios[uid]), level: levels[uid] ?? 0 };
+    }
+    return out;
+  }, [videos, audios, levels]);
 
   return {
-    state: !live ? "idle" : phase === null ? "connecting" : phase,
+    state: !onAir ? "idle" : phase === null ? "connecting" : phase,
     error,
-    hostVideo,
-    screenVideo,
-    hostAudio,
+    selfUid: session?.creds.uid ?? null,
+    hostUid,
+    screenUid,
+    feeds,
+    hostVideo: feeds[hostUid]?.video ?? null,
+    screenVideo: feeds[screenUid]?.video ?? null,
+    hostAudio: feeds[hostUid]?.audio ?? false,
     audioBlocked,
     unblockAudio: () => {
       for (const track of remoteAudioRef.current.values()) track.play();

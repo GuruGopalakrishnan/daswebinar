@@ -14,6 +14,7 @@ import {
   type BroadcastStatus,
   type ChatMessage,
   type HandRaise,
+  type Participant,
   type Poll,
   type PresenceMeta,
   type Question,
@@ -45,6 +46,8 @@ export type RoomState = {
   presence: PresenceMeta[];
   handRaises: HandRaise[];
   members: Author[];
+  /** Panelists on stage and attendees asking to speak. */
+  participants: Participant[];
   liveCount: number;
   bursts: ReactionBurst[];
   broadcastStatus: BroadcastStatus | null;
@@ -57,6 +60,8 @@ type Action =
   | { type: "message_failed"; clientMessageId: string }
   | { type: "question"; question: Question; mine?: boolean }
   | { type: "poll"; poll: Poll; mine?: boolean }
+  | { type: "participant"; participant: Participant }
+  | { type: "participant_removed"; userId: string }
   | { type: "presence"; presence: PresenceMeta[] }
   | { type: "settings"; settings: Settings }
   | { type: "burst"; emoji: Reaction }
@@ -76,6 +81,7 @@ const initialState: RoomState = {
   presence: [],
   handRaises: [],
   members: [],
+  participants: [],
   liveCount: 0,
   bursts: [],
   broadcastStatus: null,
@@ -95,11 +101,18 @@ function upsert<T extends { id: string }>(list: T[], item: T, merge?: (prev: T, 
   return copy;
 }
 
+const ROLE_ORDER: Record<Role, number> = { host: 0, panelist: 1, attendee: 2 };
+
 /** Roster, live count and hand-raise queue, derived from Presence. */
-function fromPresence(presence: PresenceMeta[], hostId: string | null) {
+function fromPresence(presence: PresenceMeta[], hostId: string | null, participants: Participant[]) {
+  const panelists = new Set(participants.filter((p) => p.role === "panelist").map((p) => p.userId));
   const members: Author[] = presence
-    .map((p) => ({ userId: p.userId, name: p.name, role: p.userId === hostId ? ("host" as const) : ("attendee" as const) }))
-    .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "host" ? -1 : 1));
+    .map((p) => ({
+      userId: p.userId,
+      name: p.name,
+      role: p.userId === hostId ? ("host" as const) : panelists.has(p.userId) ? ("panelist" as const) : ("attendee" as const),
+    }))
+    .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name));
   const handRaises: HandRaise[] = presence
     .filter((p): p is PresenceMeta & { handRaisedAt: string } => p.handRaisedAt !== null && p.userId !== hostId)
     .map((p) => ({ userId: p.userId, name: p.name, raisedAt: p.handRaisedAt }))
@@ -126,7 +139,9 @@ function reducer(state: RoomState, action: Action): RoomState {
         messages: [...s.messages, ...unconfirmed],
         questions: s.questions,
         polls: s.polls,
-        ...fromPresence(state.presence, s.hostId),
+        // ?? []: tolerate a database that hasn't had the panelists migration yet.
+        participants: s.participants ?? [],
+        ...fromPresence(state.presence, s.hostId, s.participants ?? []),
       };
     }
     case "connection":
@@ -163,8 +178,27 @@ function reducer(state: RoomState, action: Action): RoomState {
         ...state,
         polls: upsert(state.polls, action.poll, (prev, next) => (action.mine ? next : { ...next, myVote: prev.myVote })),
       };
+    case "participant": {
+      const p = action.participant;
+      const rest = state.participants.filter((x) => x.userId !== p.userId);
+      // Only panelists and open requests are worth keeping.
+      const participants = p.role === "panelist" || p.speakRequestedAt ? [...rest, p] : rest;
+      // Promotion or demotion changes what I may do.
+      const mine = state.me && state.me.userId === p.userId && state.me.role !== "host";
+      return {
+        ...state,
+        participants,
+        me: mine ? { ...state.me!, role: p.role } : state.me,
+        role: mine ? p.role : state.role,
+        ...fromPresence(state.presence, state.hostId, participants),
+      };
+    }
+    case "participant_removed": {
+      const participants = state.participants.filter((x) => x.userId !== action.userId);
+      return { ...state, participants, ...fromPresence(state.presence, state.hostId, participants) };
+    }
     case "presence":
-      return { ...state, presence: action.presence, ...fromPresence(action.presence, state.hostId) };
+      return { ...state, presence: action.presence, ...fromPresence(action.presence, state.hostId, state.participants) };
     case "settings":
       return { ...state, settings: action.settings };
     case "burst":
@@ -279,8 +313,13 @@ export function useRoom(webinarId: string) {
         .on("broadcast", { event: EVENTS.LOWER_HAND }, ({ payload }) => {
           if ((payload as { userId: string }).userId === presenceRef.current?.userId) void track({ handRaisedAt: null });
         })
+        .on("broadcast", { event: EVENTS.PARTICIPANT_UPDATED }, ({ payload }) =>
+          dispatch({ type: "participant", participant: payload as Participant }),
+        )
         .on("broadcast", { event: EVENTS.ATTENDEE_REMOVED }, ({ payload }) => {
-          if ((payload as { userId: string }).userId !== presenceRef.current?.userId) return;
+          const { userId } = payload as { userId: string };
+          dispatch({ type: "participant_removed", userId });
+          if (userId !== presenceRef.current?.userId) return;
           dispatch({ type: "connection", connection: "removed", error: "The host removed you from this webinar." });
           for (const channel of channels) void supabase.removeChannel(channel);
         })
@@ -431,6 +470,28 @@ export function useRoom(webinarId: string) {
           });
         }, REACTION_FLUSH_MS);
         return { ok: true, data: null };
+      },
+      /** Host: bring someone on stage, or send them back to the audience (also declines a request). */
+      async setPanelist(userId: string, panelist: boolean) {
+        const res = await roomRpc<Participant>(supabase, "set_room_panelist", {
+          p_webinar_id: webinarId,
+          p_user_id: userId,
+          p_panelist: panelist,
+        });
+        if (res.ok) dispatch({ type: "participant", participant: res.data });
+        return res;
+      },
+      /** Attendee: ask to be brought on stage, or withdraw the request. */
+      async requestToSpeak(requested: boolean) {
+        const res = await roomRpc<Participant>(supabase, "request_to_speak", { p_webinar_id: webinarId, p_requested: requested });
+        if (res.ok) dispatch({ type: "participant", participant: res.data });
+        return res;
+      },
+      /** Host: go on air with panelists before attendees can see anything. */
+      async setPractice(on: boolean) {
+        const res = await roomRpc<Settings>(supabase, "set_practice_mode", { p_webinar_id: webinarId, p_on: on });
+        if (res.ok) dispatch({ type: "settings", settings: res.data });
+        return res;
       },
       async removeAttendee(userId: string) {
         return roomRpc<null>(supabase, "remove_room_attendee", { p_webinar_id: webinarId, p_user_id: userId });

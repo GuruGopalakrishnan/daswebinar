@@ -1,4 +1,4 @@
-export type RtcRoleName = "host" | "audience";
+export type RtcRoleName = "host" | "panelist" | "audience";
 
 /** POST /api/webinars/:id/rtc-token */
 export type RtcCredentials = {

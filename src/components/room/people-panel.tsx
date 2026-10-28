@@ -1,22 +1,31 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Hand, MoreHorizontal, UserX } from "lucide-react";
+import { Hand, MicVocal, MoreHorizontal, UserMinus, UserPlus, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/user-avatar";
-import type { Author, HandRaise } from "@/lib/realtime/protocol";
+import type { Author, HandRaise, Participant } from "@/lib/realtime/protocol";
 import type { RoomActions } from "./use-room";
 
 export function PeoplePanel({
   members,
   handRaises,
+  speakRequests,
   me,
   actions,
 }: {
   members: Author[];
   handRaises: HandRaise[];
+  /** Attendees asking to come on stage, oldest first. */
+  speakRequests: Participant[];
   me: Author | null;
   actions: RoomActions;
 }) {
@@ -29,6 +38,12 @@ export function PeoplePanel({
     else toast.error(res.error.message);
   }
 
+  async function setPanelist(userId: string, name: string, panelist: boolean) {
+    const res = await actions.setPanelist(userId, panelist);
+    if (!res.ok) toast.error(res.error.message);
+    else if (panelist) toast.success(`${name} is now a panelist`);
+  }
+
   async function lower(userId: string) {
     const res = await actions.lowerHand(userId);
     if (!res.ok) toast.error(res.error.message);
@@ -37,8 +52,38 @@ export function PeoplePanel({
   return (
     <div className="h-full min-h-0 overflow-y-auto p-3 scrollbar-thin">
       <AnimatePresence initial={false}>
+        {isHost && speakRequests.length > 0 && (
+          <motion.section
+            key="speak"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+            aria-labelledby="speak-heading"
+          >
+            <h3 id="speak-heading" className="mb-2 flex items-center gap-1.5 px-1 text-xs font-medium text-primary">
+              <MicVocal className="size-3.5" /> Asking to speak · {speakRequests.length}
+            </h3>
+            <ul className="grid gap-1 rounded-xl border border-primary/30 bg-primary/5 p-1.5">
+              {speakRequests.map((r) => (
+                <motion.li layout key={r.userId} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
+                  <UserAvatar name={r.name} id={r.userId} className="size-7 text-[10px]" />
+                  <span className="min-w-0 flex-1 truncate text-sm">{r.name}</span>
+                  <Button variant="ghost" size="xs" onClick={() => void setPanelist(r.userId, r.name, false)}>
+                    Decline
+                  </Button>
+                  <Button size="xs" onClick={() => void setPanelist(r.userId, r.name, true)}>
+                    Bring on stage
+                  </Button>
+                </motion.li>
+              ))}
+            </ul>
+          </motion.section>
+        )}
+
         {handRaises.length > 0 && (
           <motion.section
+            key="hands"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -81,15 +126,28 @@ export function PeoplePanel({
             {m.role === "host" && (
               <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary uppercase">Host</span>
             )}
+            {m.role === "panelist" && (
+              <span className="rounded bg-highlight/15 px-1.5 py-0.5 text-[10px] font-medium text-highlight uppercase">Panelist</span>
+            )}
             {handRaises.some((h) => h.userId === m.userId) && <Hand className="size-3.5 text-warning" aria-label="Hand raised" />}
             {isHost && m.role !== "host" && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${m.name}`}>
+                  <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${m.name}`} className="size-8 sm:size-6">
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {m.role === "panelist" ? (
+                    <DropdownMenuItem onSelect={() => void setPanelist(m.userId, m.name, false)}>
+                      <UserMinus /> Move back to attendees
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onSelect={() => void setPanelist(m.userId, m.name, true)}>
+                      <UserPlus /> Make panelist
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem variant="destructive" onSelect={() => void remove(m)}>
                     <UserX /> Remove from webinar
                   </DropdownMenuItem>

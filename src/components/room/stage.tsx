@@ -7,7 +7,7 @@ import { MessageCircleQuestion, MicOff, Volume2 } from "lucide-react";
 import { Countdown } from "@/components/countdown";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
-import type { Question } from "@/lib/realtime/protocol";
+import type { Participant, Question } from "@/lib/realtime/protocol";
 import type { WebinarStatus } from "@/lib/webinars/types";
 import type { Broadcast } from "./use-broadcast";
 import type { ReactionBurst } from "./use-room";
@@ -50,8 +50,24 @@ function SurfaceView({ surface, fit }: { surface: Surface; fit: "contain" | "cov
   );
 }
 
+/** Someone on stage: the host or a panelist, seen locally (me) or remotely. */
+type Tile = {
+  key: string;
+  name: string;
+  role: "host" | "panelist";
+  me: boolean;
+  surface: Surface | null;
+  micOn: boolean;
+  level: number;
+};
+
 type Props = {
   isHost: boolean;
+  /** I am a panelist (on stage, not the host). */
+  isPanelist: boolean;
+  myUserId: string | null;
+  /** Panelists on stage, from the room state. */
+  panelists: Participant[];
   status: WebinarStatus;
   hostName: string;
   startsAt: string;
@@ -68,7 +84,52 @@ type Props = {
   children?: React.ReactNode;
 };
 
-export function Stage({ isHost, status, hostName, startsAt, camera, screen, micOn, micLevel, broadcast, bursts, onBurstDone, spotlight, children }: Props) {
+export function Stage({
+  isHost,
+  isPanelist,
+  myUserId,
+  panelists,
+  status,
+  hostName,
+  startsAt,
+  camera,
+  screen,
+  micOn,
+  micLevel,
+  broadcast,
+  bursts,
+  onBurstDone,
+  spotlight,
+  children,
+}: Props) {
+  const self = (name: string, role: Tile["role"]): Tile => ({
+    key: "me",
+    name,
+    role,
+    me: true,
+    surface: camera ? { kind: "stream", stream: camera, mirrored: true } : null,
+    micOn,
+    level: micOn ? micLevel : 0,
+  });
+  const remote = (key: string, name: string, role: Tile["role"], uid: number | null): Tile => {
+    const feed = uid === null ? undefined : broadcast.feeds[uid];
+    return {
+      key,
+      name,
+      role,
+      me: false,
+      surface: feed?.video ? { kind: "track", track: feed.video } : null,
+      micOn: Boolean(feed?.audio),
+      level: feed?.level ?? 0,
+    };
+  };
+  const tiles: Tile[] = [
+    isHost ? self(hostName, "host") : remote("host", hostName, "host", broadcast.hostUid),
+    ...panelists.map((p) => (p.userId === myUserId ? self(p.name, "panelist") : remote(p.userId, p.name, "panelist", p.rtcUid))),
+  ];
+  // Attendees only see the stage once it's live (practice is private).
+  const gallery = tiles.length > 1 && (isHost || isPanelist || status === "live");
+
   const main: Surface | null = isHost
     ? screen
       ? { kind: "stream", stream: screen }
@@ -81,7 +142,7 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
         ? { kind: "track", track: broadcast.hostVideo }
         : null;
   const presenting = isHost ? Boolean(screen) : Boolean(broadcast.screenVideo);
-  const pip: Surface | null = !presenting
+  const pip: Surface | null = !presenting || gallery
     ? null
     : isHost
       ? camera && { kind: "stream", stream: camera, mirrored: true }
@@ -96,7 +157,9 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
         className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_0%,oklch(0.42_0.06_180/0.35),transparent_55%),radial-gradient(ellipse_at_100%_100%,oklch(0.5_0.08_78/0.18),transparent_50%)]"
       />
 
-      {main ? (
+      {gallery && !presenting ? (
+        <Gallery tiles={tiles} />
+      ) : main ? (
         <SurfaceView key={main.kind === "stream" ? main.stream.id : main.track.getTrackId()} surface={main} fit={presenting ? "contain" : "cover"} />
       ) : !isHost && status !== "live" ? (
         <WaitingRoom hostName={hostName} startsAt={startsAt} />
@@ -126,8 +189,10 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
         </motion.div>
       )}
 
+      {gallery && presenting && <Filmstrip tiles={tiles} />}
+
       {/* Name tag on a full-frame camera */}
-      {main && !presenting && (
+      {main && !presenting && !gallery && (
         <span className="absolute bottom-24 left-4 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 text-xs text-white backdrop-blur">
           {hostMuted ? <MicOff className="size-3.5" /> : <SpeakingBars active={speaking} />}
           {hostName}
@@ -173,6 +238,59 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+function TileView({ tile, compact }: { tile: Tile; compact?: boolean }) {
+  const speaking = tile.micOn && tile.level > 0.15;
+  return (
+    <div
+      className={cn(
+        "relative flex size-full items-center justify-center overflow-hidden rounded-2xl bg-black/40 ring-1 ring-white/10 transition-shadow",
+        speaking && "ring-2 ring-primary",
+      )}
+    >
+      {tile.surface ? (
+        <SurfaceView surface={tile.surface} fit="cover" />
+      ) : (
+        <UserAvatar name={tile.name} className={compact ? "size-10 text-sm" : "size-16 text-lg sm:size-20"} />
+      )}
+      <span className="absolute bottom-1.5 left-1.5 inline-flex max-w-[calc(100%-0.75rem)] items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur">
+        {tile.micOn ? <SpeakingBars active={speaking} /> : <MicOff className="size-3 shrink-0" />}
+        <span className="truncate">
+          {tile.name}
+          {tile.me && " (you)"}
+        </span>
+        {!compact && tile.role === "host" && <span className="ml-0.5 text-[10px] text-highlight uppercase">Host</span>}
+      </span>
+    </div>
+  );
+}
+
+/** Host and panelists side by side. */
+function Gallery({ tiles }: { tiles: Tile[] }) {
+  const cols = tiles.length <= 4 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2 sm:grid-cols-3";
+  return (
+    <div className={cn("grid size-full content-center gap-2 p-3 pt-16 pb-24 sm:gap-3 sm:p-6 sm:pt-20 sm:pb-28", cols)}>
+      {tiles.map((t) => (
+        <div key={t.key} className="aspect-video min-h-0 w-full">
+          <TileView tile={t} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Everyone on stage in a strip beside a screen share. */
+function Filmstrip({ tiles }: { tiles: Tile[] }) {
+  return (
+    <div className="absolute top-16 right-3 bottom-24 flex w-28 flex-col gap-2 overflow-y-auto scrollbar-thin sm:right-4 sm:w-44">
+      {tiles.map((t) => (
+        <div key={t.key} className="aspect-video w-full shrink-0">
+          <TileView tile={t} compact />
+        </div>
+      ))}
     </div>
   );
 }

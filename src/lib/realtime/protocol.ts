@@ -1,7 +1,9 @@
 // Live-room protocol on Supabase Realtime. JSON shapes match the functions in
-// supabase/migrations/20261026030000_realtime_room.sql.
+// supabase/migrations/20261026030000_realtime_room.sql (panelists and practice:
+// 20261030000000_panelists_practice.sql).
 
-export type Role = "host" | "attendee";
+/** Host: full control. Panelist: mic + camera, no admin. Attendee: view only. */
+export type Role = "host" | "panelist" | "attendee";
 
 export type Settings = {
   chatEnabled: boolean;
@@ -14,6 +16,20 @@ export type Settings = {
   recording: boolean;
   /** A question the host is showing on stage, or null. */
   spotlightQuestionId: string | null;
+  /** Host and panelists are on air before going live; attendees still wait. */
+  practice: boolean;
+};
+
+/**
+ * A panelist on stage, or an attendee with an open request to speak.
+ * rtcUid is the panelist's Agora uid (null for attendees).
+ */
+export type Participant = {
+  userId: string;
+  name: string;
+  role: "panelist" | "attendee";
+  rtcUid: number | null;
+  speakRequestedAt: string | null;
 };
 
 export type Author = { userId: string; name: string; role: Role };
@@ -60,6 +76,7 @@ export type Snapshot = {
   messages: ChatMessage[];
   questions: Question[];
   polls: Poll[];
+  participants: Participant[];
 };
 
 /** What each client tracks on the room channel (presence key = userId). */
@@ -98,6 +115,8 @@ export const EVENTS = {
   SETTINGS_UPDATED: "webinar_settings:settings_updated",
   /** The host removed someone; that client leaves. */
   ATTENDEE_REMOVED: "attendee:removed",
+  /** Promoted, demoted, or asked / stopped asking to speak. Payload: Participant. */
+  PARTICIPANT_UPDATED: "participant:updated",
 } as const;
 
 /** Broadcast event on the reactions topic (sent by clients). */

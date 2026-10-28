@@ -26,7 +26,7 @@ export function QnaPanel({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const isHost = me?.role === "host";
-  const disabled = settings !== null && !settings.qnaEnabled && !isHost;
+  const disabled = settings !== null && !settings.qnaEnabled && !isHost && me?.role !== "panelist";
 
   const spotlightId = settings?.spotlightQuestionId ?? null;
   const sorted = questions

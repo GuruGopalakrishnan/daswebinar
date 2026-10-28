@@ -89,12 +89,15 @@ function DeviceSelect({
 
 export function PreJoin({
   isHost,
+  isPanelist,
   title,
   name,
   media,
   onJoin,
 }: {
   isHost: boolean;
+  /** Panelists get the same camera and mic check as the host. */
+  isPanelist: boolean;
   title: string;
   name: string;
   media: LocalMedia;
@@ -103,15 +106,16 @@ export function PreJoin({
   const preview = useRef<HTMLVideoElement>(null);
   const level = useAudioLevel(media.mic);
   const speaker = useSpeakerTest(media.speakerId);
+  const canPublish = isHost || isPanelist;
 
-  // Hosts: open camera and mic straight away so they can check both.
+  // Host and panelists: open camera and mic straight away so they can check both.
   useEffect(() => {
-    if (!isHost) return;
+    if (!canPublish) return;
     void media.startCamera();
     void media.startMic(false);
     // Only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost]);
+  }, [canPublish]);
 
   useEffect(() => {
     if (preview.current) preview.current.srcObject = media.camera;
@@ -130,16 +134,16 @@ export function PreJoin({
     <div className="dark flex min-h-dvh items-center justify-center bg-stage p-4 text-white">
       <div className="grid w-full max-w-4xl gap-6 md:grid-cols-[1.4fr_1fr] md:items-center">
         <div className="relative aspect-video overflow-hidden rounded-3xl bg-black/40 ring-1 ring-white/10">
-          {isHost && media.camera ? (
+          {canPublish && media.camera ? (
             <video ref={preview} autoPlay playsInline muted className="size-full -scale-x-100 object-cover" />
           ) : (
             <div className="flex size-full flex-col items-center justify-center gap-3">
               <UserAvatar name={name} className="size-20 text-xl" />
-              {isHost && <p className="text-sm text-white/50">{media.busy === "camera" ? "Starting camera…" : "Camera is off"}</p>}
+              {canPublish && <p className="text-sm text-white/50">{media.busy === "camera" ? "Starting camera…" : "Camera is off"}</p>}
             </div>
           )}
 
-          {isHost && (
+          {canPublish && (
             <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 p-4">
               <button
                 type="button"
@@ -169,13 +173,13 @@ export function PreJoin({
 
         <div className="grid gap-5">
           <div>
-            <p className="text-xs font-medium tracking-wider text-white/50 uppercase">{isHost ? "Get ready" : "You're about to join"}</p>
+            <p className="text-xs font-medium tracking-wider text-white/50 uppercase">{isHost ? "Get ready" : isPanelist ? "You're a panelist" : "You're about to join"}</p>
             <h1 className="mt-1 font-display text-3xl leading-tight text-balance">{title}</h1>
           </div>
 
           {errorText && <p className="rounded-xl bg-destructive/15 p-3 text-sm text-red-200">{errorText}</p>}
 
-          {isHost && (
+          {canPublish && (
             <>
               <div className="grid gap-1.5">
                 <div className="flex items-center justify-between text-xs text-white/60">
@@ -226,6 +230,7 @@ export function PreJoin({
             {isHost ? "Enter studio" : "Join webinar"}
           </Button>
           {isHost && <p className="text-xs text-white/50">Attendees can&apos;t see or hear you until you press Go live.</p>}
+          {isPanelist && <p className="text-xs text-white/50">The host brought you on stage. You can turn your camera and mic off any time.</p>}
         </div>
       </div>
     </div>

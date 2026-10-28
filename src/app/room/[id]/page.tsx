@@ -6,6 +6,7 @@ import { Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Room } from "@/components/room/room";
 import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { getHostWebinar, getMyRegistration, getPublicWebinar, isUuid } from "@/lib/webinars/queries";
 
 export const metadata: Metadata = { title: "Live room" };
@@ -78,9 +79,16 @@ async function RoomContent({ params }: Pick<PageProps<"/room/[id]">, "params">) 
     );
   }
 
+  // Panelists get a camera and mic check before entering; the room itself
+  // follows live promotions and demotions from Realtime.
+  const supabase = await createClient();
+  const { data: access } = await supabase.rpc("get_room_access", { p_webinar_id: id });
+  const isPanelist = (access as { role?: string } | null)?.role === "panelist";
+
   return (
     <Room
       isHost={false}
+      isPanelist={isPanelist}
       webinar={{
         id,
         title: webinar.title,

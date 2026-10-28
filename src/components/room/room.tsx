@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, Users, WifiOff, X } from "lucide-react";
+import { ChevronLeft, Maximize, Minimize, Users, WifiOff, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -47,23 +47,69 @@ export type RoomWebinar = {
   startedAt: string | null;
 };
 
-/** Everyone passes a device check first; then the studio mounts and connects. */
-export function Room({ webinar, isHost }: { webinar: RoomWebinar; isHost: boolean }) {
+/**
+ * Everyone passes a device check first; then the studio mounts and connects.
+ * `isPanelist` (from the server) only decides whether the device check offers
+ * a camera and mic; the live role comes from the room state.
+ */
+export function Room({ webinar, isHost, isPanelist = false }: { webinar: RoomWebinar; isHost: boolean; isPanelist?: boolean }) {
   const media = useLocalMedia();
   const [joined, setJoined] = useState(false);
 
   if (!joined) {
-    return <PreJoin isHost={isHost} title={webinar.title} name={webinar.hostName} media={media} onJoin={() => setJoined(true)} />;
+    return (
+      <PreJoin
+        isHost={isHost}
+        isPanelist={isPanelist}
+        title={webinar.title}
+        name={webinar.hostName}
+        media={media}
+        onJoin={() => setJoined(true)}
+      />
+    );
   }
   return <Studio webinar={webinar} isHost={isHost} media={media} />;
 }
 
 const PANEL_TITLES: Record<Panel, string> = { chat: "Chat", qna: "Questions", polls: "Polls", people: "People" };
 
+function subscribeFullscreen(listener: () => void) {
+  document.addEventListener("fullscreenchange", listener);
+  return () => document.removeEventListener("fullscreenchange", listener);
+}
+
+function useFullscreen(ref: React.RefObject<HTMLElement | null>) {
+  const active = useSyncExternalStore(subscribeFullscreen, () => document.fullscreenElement !== null, () => false);
+  // iPhone Safari has no element fullscreen; the button stays hidden there.
+  const supported = useSyncExternalStore(subscribeFullscreen, () => Boolean(document.fullscreenEnabled), () => false);
+  const toggle = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void ref.current?.requestFullscreen().catch(() => toast.error("Fullscreen isn't available here."));
+  }, [ref]);
+  return { active, supported, toggle };
+}
+
 function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: boolean; media: LocalMedia }) {
   const router = useRouter();
   const { state, actions } = useRoom(webinar.id);
   const micLevel = useAudioLevel(media.mic);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useFullscreen(rootRef);
+
+  // Roles: host from the server; panelist from the room state, so promotion
+  // and demotion take effect without a reload.
+  const isPanelist = !isHost && state.me?.role === "panelist";
+  const canPublish = isHost || isPanelist;
+  const panelists = useMemo(() => state.participants.filter((p) => p.role === "panelist"), [state.participants]);
+  const speakRequests = useMemo(
+    () =>
+      state.participants
+        .filter((p) => p.role === "attendee" && p.speakRequestedAt)
+        .sort((a, b) => a.speakRequestedAt!.localeCompare(b.speakRequestedAt!)),
+    [state.participants],
+  );
+  const mySpeakRequest = speakRequests.some((p) => p.userId === state.me?.userId);
+  const practice = state.settings?.practice ?? false;
 
   const [status, setStatus] = useState<WebinarStatus>(webinar.status);
   const [startedAt, setStartedAt] = useState(webinar.startedAt);
@@ -73,17 +119,21 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [confirmStart, setConfirmStart] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
-  const [busy, setBusy] = useState<null | "live" | "end">(null);
+  const [busy, setBusy] = useState<null | "live" | "end" | "practice">(null);
 
   // Attendees learn about lifecycle changes from the room's realtime broadcast.
   const effectiveStatus: WebinarStatus = state.broadcastStatus ?? status;
   const live = effectiveStatus === "live";
+  // In practice the host and panelists are on air; attendees are not.
+  const onAir = live || (practice && canPublish);
 
   const broadcast = useBroadcast({
     webinarId: webinar.id,
-    isHost,
-    live,
+    canPublish,
+    onAir,
+    stageUids: panelists.flatMap((p) => (p.rtcUid ? [p.rtcUid] : [])),
     camera: media.camera,
     mic: media.mic,
     micMuted: media.micMuted,
@@ -134,11 +184,51 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
     knownHands.current = new Set(state.handRaises.map((h) => h.userId));
   }, [isHost, state.handRaises, actions]);
 
-  // "You're muted" nudge when the host talks into a muted mic.
+  // Requests to speak pop a toast with a one-tap "Bring on stage".
+  const knownRequests = useRef(new Set<string>());
+  useEffect(() => {
+    if (!isHost) return;
+    for (const r of speakRequests) {
+      if (knownRequests.current.has(r.userId)) continue;
+      toast(`🎙️ ${r.name} asked to speak`, {
+        action: {
+          label: "Bring on stage",
+          onClick: () =>
+            void actions.setPanelist(r.userId, true).then((res) => {
+              if (!res.ok) toast.error(res.error.message);
+            }),
+        },
+      });
+    }
+    knownRequests.current = new Set(speakRequests.map((r) => r.userId));
+  }, [isHost, speakRequests, actions]);
+
+  // Promoted: tell them. Demoted: turn their camera and mic off right away
+  // (the broadcast also rejoins as audience, so nothing more is published).
+  const wasPanelist = useRef<boolean | null>(null);
+  const roleKnown = state.me !== null;
+  useEffect(() => {
+    if (!roleKnown) return;
+    // The first known role is where we start, not a change.
+    if (wasPanelist.current === null) wasPanelist.current = isPanelist;
+    if (wasPanelist.current === isPanelist) return;
+    wasPanelist.current = isPanelist;
+    if (isPanelist) {
+      toast.success("You're a panelist now", {
+        description: live ? "Turn on your mic or camera when you're ready." : "You'll be on air once the host starts.",
+        action: { label: "Unmute", onClick: () => void media.startMic(false) },
+      });
+    } else {
+      media.release();
+      toast("You're back in the audience", { description: "The host moved you off stage." });
+    }
+  }, [roleKnown, isPanelist, live, media]);
+
+  // "You're muted" nudge when someone on stage talks into a muted mic.
   const loudSince = useRef<number | null>(null);
   const lastNudge = useRef(0);
   useEffect(() => {
-    if (!isHost || !media.mic || !media.micMuted) {
+    if (!canPublish || !media.mic || !media.micMuted) {
       loudSince.current = null;
       return;
     }
@@ -155,7 +245,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
     } else {
       loudSince.current = null;
     }
-  }, [isHost, micLevel, media]);
+  }, [canPublish, micLevel, media]);
 
   // Push to talk: hold Space while muted.
   const pttActive = useRef(false);
@@ -180,6 +270,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
         setStatus("live");
         setStartedAt(new Date().toISOString());
         void actions.announce("live");
+        setConfirmStart(false);
         toast.success("You're live!");
       } else {
         setStatus("ended");
@@ -189,6 +280,24 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
     } finally {
       setBusy(null);
     }
+  }
+
+  async function togglePractice() {
+    setBusy("practice");
+    try {
+      const res = await actions.setPractice(!practice);
+      if (!res.ok) toast.error(res.error.message);
+      else if (res.data.practice) toast("Practice started", { description: "You and your panelists are on air. Attendees still see the waiting room." });
+      else toast("Practice ended");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function toggleSpeak() {
+    const res = await actions.requestToSpeak(!mySpeakRequest);
+    if (!res.ok) toast.error(res.error.message);
+    else if (!mySpeakRequest) toast("Request sent", { description: "The host will bring you on stage if they can." });
   }
 
   async function toggleHand() {
@@ -213,8 +322,9 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
   }
 
   useShortcuts({
-    mic: isHost ? () => void media.toggleMic() : undefined,
-    camera: isHost ? () => void media.toggleCamera() : undefined,
+    mic: canPublish ? () => void media.toggleMic() : undefined,
+    camera: canPublish ? () => void media.toggleCamera() : undefined,
+    fullscreen: fullscreen.supported ? fullscreen.toggle : undefined,
     screen: isHost && media.canShareScreen ? () => void media.toggleScreen() : undefined,
     record: isHost && recorder.supported ? toggleRecord : undefined,
     hand: !isHost && state.settings?.handRaiseEnabled ? () => void toggleHand() : undefined,
@@ -228,7 +338,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
       const emoji = REACTIONS[i];
       if (emoji && (isHost || state.settings?.reactionsEnabled !== false)) void react(emoji);
     },
-    pushToTalk: isHost
+    pushToTalk: canPublish
       ? (down) => {
           if (down && media.mic && media.micMuted) {
             pttActive.current = true;
@@ -270,16 +380,19 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
     chat: unreadChat || undefined,
     qna: newQuestions || undefined,
     polls: !isHost && openPolls ? ("dot" as const) : undefined,
-    people: isHost ? state.handRaises.length || undefined : undefined,
+    people: isHost ? state.handRaises.length + speakRequests.length || undefined : undefined,
   };
 
   return (
-    <div className="dark flex h-dvh overflow-hidden bg-stage text-foreground">
+    <div ref={rootRef} className="dark flex h-dvh overflow-hidden bg-stage text-foreground">
       {/* Stage column; on phones the panel nav sits under the stage */}
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1">
           <Stage
             isHost={isHost}
+            isPanelist={isPanelist}
+            myUserId={state.me?.userId ?? null}
+            panelists={panelists}
             status={effectiveStatus}
             hostName={webinar.hostName}
             startsAt={webinar.startsAt}
@@ -308,7 +421,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
               </Link>
             </Button>
             <h1 className="min-w-0 truncate text-sm font-medium sm:text-base">{webinar.title}</h1>
-            <StatusPill status={effectiveStatus} startedAt={startedAt} isHost={isHost} />
+            <StatusPill status={effectiveStatus} startedAt={startedAt} isHost={isHost} isPanelist={isPanelist} practice={practice} />
             {state.settings?.recording && (
               <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" title="This session is being recorded">
                 <span className="size-2 animate-pulse rounded-full bg-live" /> REC
@@ -324,6 +437,18 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
               <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs backdrop-blur" aria-label={`${state.liveCount} in the room`}>
                 <Users className="size-3.5" /> <span className="tabular-nums">{state.liveCount.toLocaleString()}</span>
               </span>
+              {fullscreen.supported && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-white hover:bg-white/10 hover:text-white"
+                  onClick={fullscreen.toggle}
+                  aria-label={fullscreen.active ? "Exit fullscreen" : "Fullscreen"}
+                  title={fullscreen.active ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+                >
+                  {fullscreen.active ? <Minimize /> : <Maximize />}
+                </Button>
+              )}
             </div>
           </header>
 
@@ -336,7 +461,13 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
           >
             <Dock
               isHost={isHost}
+              canPublish={canPublish}
               status={effectiveStatus}
+              practice={practice}
+              practiceBusy={busy === "practice"}
+              onTogglePractice={() => void togglePractice()}
+              speakRequested={mySpeakRequest}
+              onToggleSpeak={() => void toggleSpeak()}
               media={media}
               micLevel={micLevel}
               handRaised={myHandRaised}
@@ -353,7 +484,7 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
               onToggleRecord={toggleRecord}
               onSettings={() => setSettingsOpen(true)}
               onShortcuts={() => setShortcutsOpen(true)}
-              onGoLive={() => void lifecycle("start")}
+              onGoLive={() => setConfirmStart(true)}
               onEnd={() => setConfirmEnd(true)}
               onLeave={leave}
               goingLive={busy === "live"}
@@ -387,15 +518,44 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
                 <QnaPanel questions={state.questions} me={state.me} settings={state.settings} actions={actions} />
               )}
               {panel === "polls" && <PollsPanel polls={state.polls} me={state.me} actions={actions} />}
-              {panel === "people" && <PeoplePanel members={state.members} handRaises={state.handRaises} me={state.me} actions={actions} />}
+              {panel === "people" && (
+                <PeoplePanel members={state.members} handRaises={state.handRaises} speakRequests={speakRequests} me={state.me} actions={actions} />
+              )}
             </div>
           </motion.aside>
         )}
       </AnimatePresence>
 
       {isHost && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={state.settings} actions={actions} />}
-      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} isHost={isHost} />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} isHost={isHost} canPublish={canPublish} />
       {isHost && <UpgradeDialog reason={upgradeReason} onOpenChange={(open) => !open && setUpgradeReason(null)} />}
+
+      <AlertDialog open={confirmStart} onOpenChange={setConfirmStart}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Go live now?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Everyone in the waiting room will see and hear you
+              {panelists.length > 0 && ` and your ${panelists.length === 1 ? "panelist" : `${panelists.length} panelists`}`}, and
+              registrants get a &quot;we&apos;re live&quot; email.
+              {practice && " Practice ends when you go live."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy === "live"}>Not yet</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy === "live"}
+              className="bg-live text-white hover:bg-live/90"
+              onClick={(e) => {
+                e.preventDefault();
+                void lifecycle("start");
+              }}
+            >
+              Go live
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmEnd} onOpenChange={setConfirmEnd}>
         <AlertDialogContent>
@@ -475,7 +635,19 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
   );
 }
 
-function StatusPill({ status, startedAt, isHost }: { status: WebinarStatus; startedAt: string | null; isHost: boolean }) {
+function StatusPill({
+  status,
+  startedAt,
+  isHost,
+  isPanelist,
+  practice,
+}: {
+  status: WebinarStatus;
+  startedAt: string | null;
+  isHost: boolean;
+  isPanelist: boolean;
+  practice: boolean;
+}) {
   const now = useNow();
   if (status === "live") {
     return (
@@ -487,6 +659,16 @@ function StatusPill({ status, startedAt, isHost }: { status: WebinarStatus; star
     );
   }
   if (status === "ended") return null;
+  if (practice && (isHost || isPanelist)) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-highlight/90 px-2.5 py-1 text-[11px] font-semibold text-black">
+        PRACTICE <span className="hidden font-normal sm:inline">· attendees can&apos;t see you</span>
+      </span>
+    );
+  }
+  if (isPanelist) {
+    return <span className="inline-flex shrink-0 items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-white/80">Backstage · not live yet</span>;
+  }
   return (
     <span className="inline-flex shrink-0 items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-white/80">
       {isHost ? "Preview · only you can see this" : "Waiting room"}

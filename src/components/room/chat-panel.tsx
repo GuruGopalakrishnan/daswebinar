@@ -35,7 +35,9 @@ export function ChatPanel({
   const lastCount = useRef(messages.length);
 
   const isHost = me?.role === "host";
-  const disabled = settings !== null && !settings.chatEnabled && !isHost;
+  // The chat switch and slow mode apply to attendees only (as on the server).
+  const onStage = isHost || me?.role === "panelist";
+  const disabled = settings !== null && !settings.chatEnabled && !onStage;
 
   // Stick to the bottom unless the user scrolled up to read history.
   useLayoutEffect(() => {
@@ -106,6 +108,9 @@ export function ChatPanel({
                           {m.author.role === "host" && (
                             <span className="rounded bg-primary/15 px-1 text-[10px] font-medium text-primary uppercase">Host</span>
                           )}
+                          {m.author.role === "panelist" && (
+                            <span className="rounded bg-highlight/15 px-1 text-[10px] font-medium text-highlight uppercase">Panelist</span>
+                          )}
                           <time dateTime={m.sentAt} className="text-[11px] text-muted-foreground">
                             {timeLabel(m.sentAt)}
                           </time>
@@ -141,7 +146,7 @@ export function ChatPanel({
           )}
         </AnimatePresence>
       </div>
-      <Composer disabled={disabled} settings={settings} isHost={isHost} onSend={actions.sendMessage} />
+      <Composer disabled={disabled} settings={settings} isHost={onStage} onSend={actions.sendMessage} />
     </div>
   );
 }

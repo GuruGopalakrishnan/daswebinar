@@ -68,8 +68,8 @@ Priorities: **P0** before charging customers · **P1** what makes it premium and
 - [ ] Attendance analytics: joined / registered, peak viewers, average watch time, CTA clicks; CSV export of attendees with watch time
 - [ ] Branded registration pages: cover image, host bio/photo, brand colour, testimonial block
 - [ ] Replay page with an expiry ("available for 48 h") and the same CTA
-- [ ] Promote attendee to speaker (second publisher token + speaker tile)
-- [ ] Practice session: host and co-hosts can join live before attendees are admitted
+- [x] Promote attendee to speaker (panelist role, Phase 7)
+- [x] Practice session: host and panelists go on air before attendees are admitted (Phase 7)
 
 ### P2: scale and polish
 - [ ] Cloud recording (Agora Cloud Recording to S3/R2), then automatic replays
@@ -86,7 +86,7 @@ Priorities: **P0** before charging customers · **P1** what makes it premium and
 - [x] Fixed the `Date.now()` prerender error on every signed-in page (`src/lib/supabase/server.ts`)
 - [x] Room (host + attendee): labeled bottom navigation on phones, decluttered dock with 44 px targets
 - [x] Registration page: serif title, sticky "Save my seat" bar on phones
-- [ ] Room: **panelist / speaker role** (needs a publisher token for promoted attendees, a speaker tile layout, and a promote/demote control for the host)
+- [x] Room: **panelist / speaker role** (Phase 7)
 - [ ] Room on phones: switching mic/camera mid-session (device menus are desktop-only; phones pick devices on the pre-join screen)
 - [ ] Dark-mode pass on the dashboard and registration page (tokens exist; not reviewed screen by screen)
 - [ ] Webinar manage page, billing page and creation wizard: visual pass with the new components
@@ -99,3 +99,19 @@ Priorities: **P0** before charging customers · **P1** what makes it premium and
 - [x] Plan feature lists made honest (Pro listed features Free also has)
 - [x] Fixed the pre-join device picker's controlled/uncontrolled warning
 - [ ] Razorpay keys + plan id + webhook (Phase 5); the checkout code already exists
+
+### Phase 7: professional webinar room (2026-10-28)
+- [x] Panelist role: host promotes / demotes from People; panelists get mic + camera; stage shows host and panelists
+      side by side (gallery), or as a filmstrip beside a screen share
+- [x] Backend media permission: `get_room_access()` decides the role; the rtc-token route only issues publisher
+      credentials to the host and current panelists (bound to their stage uid when an App Certificate is set)
+- [x] Database: `room_participants` (role, stage uid, request to speak), `webinars.practice_started_at`; panelists
+      chat and ask as `panelist` and aren't held back by the attendee chat switch or slow mode
+- [x] Request to speak: attendee button → host sees a toast and an "Asking to speak" list with Bring on stage / Decline
+- [x] Practice mode before going live; Go live now has a confirmation dialog like End
+- [x] Fullscreen (button in the top bar and `F`), hidden where the browser can't do it (iPhone Safari)
+- [x] Applied `20261030000000_panelists_practice.sql` to a scratch database with every earlier migration and ran 44 checks
+- [ ] Apply the migration to the Supabase project (`npx supabase db push`)
+- [ ] Two-browser test with real Agora keys (Phase 16): promote, demote, practice, request to speak
+- [ ] Panelist screen sharing (only the host has a screen-share connection today)
+- [ ] Local recording captures the host only; panelists need Agora Cloud Recording (P2) to be in the file
