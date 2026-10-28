@@ -1,0 +1,114 @@
+/* Deploy & Grow motion graphics (ported from UI Prototype V1 app.css).
+   Original SVG scenes in src/components/motion-graphics/. Only transform, opacity and stroke-dashoffset
+   animate. Scenes start paused and run while on screen (.mg-run, set by <MotionScene>) and while the tab is
+   visible (.mg-hidden on <html> pauses them). Under prefers-reduced-motion every scene shows a still frame. */
+
+.mg { margin: 0; position: relative; }
+.mg svg { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font-sans); }
+.mga {
+  animation-duration: var(--T, 8s);
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  animation-play-state: paused;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.mg-ox { transform-origin: left center; }
+.mg-once .mga { animation-iteration-count: 1; }
+.mg-wave { transform-box: fill-box; transform-origin: center bottom; animation: mg-wave 1.1s ease-in-out infinite alternate; animation-play-state: paused; }
+@keyframes mg-wave { 0% { transform: scaleY(0.35); } 50% { transform: scaleY(1.25); } 100% { transform: scaleY(0.6); } }
+.mg-ping { animation: mg-ping 1.8s ease-in-out infinite; animation-play-state: paused; }
+@keyframes mg-ping { 50% { opacity: 0.35; } }
+.mg-flow { offset-rotate: 0deg; animation: mg-flow 2.4s ease-in-out infinite; animation-play-state: paused; }
+@keyframes mg-flow { 0% { offset-distance: 0%; opacity: 0; } 15%, 85% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
+.mg-ring { transform-box: fill-box; transform-origin: center; animation: mg-ring 2.6s ease-out infinite 1.4s; animation-play-state: paused; opacity: 0; }
+@keyframes mg-ring { 0% { transform: scale(0.7); opacity: 0.5; } 70%, 100% { transform: scale(1.25); opacity: 0; } }
+.mg.mg-run .mga, .mg.mg-run .mg-wave, .mg.mg-run .mg-ping, .mg.mg-run .mg-flow, .mg.mg-run .mg-ring { animation-play-state: running; }
+.mg-hidden .mg .mga, .mg-hidden .mg .mg-wave, .mg-hidden .mg .mg-ping, .mg-hidden .mg .mg-flow, .mg-hidden .mg .mg-ring { animation-play-state: paused !important; }
+
+/* Landing hero */
+.mg-hero { padding: 8px; border-radius: 24px; background: color-mix(in oklch, var(--muted) 60%, transparent); border: 1px solid var(--border); animation: route-in 640ms var(--ease-out) both 120ms; }
+
+/* How it works journey */
+.mg-journey { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; }
+.mgj-stage { position: relative; display: flex; flex-direction: column; gap: 12px; }
+.mgj-card { position: relative; border-radius: 16px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-card); padding: 6px; }
+.mgj-hl { position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 2px var(--teal), 0 10px 28px -12px color-mix(in oklch, var(--teal) 60%, transparent); pointer-events: none; transform-box: border-box; }
+.mgj-text { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 2px; align-items: center; }
+.mgj-text b { font-size: 15px; font-weight: 600; }
+.mgj-text p { grid-column: 1 / -1; color: var(--muted-foreground); font-size: 13px; line-height: 19px; margin: 0; }
+.mgj-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--primary-foreground); font-size: 11px; font-weight: 600; }
+.mgj-line { position: absolute; top: 25%; left: calc(100% + 2px); width: 16px; height: 2px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.mgj-line span { display: block; height: 100%; background: var(--teal); transform-box: border-box; }
+@media (max-width: 1023px) { .mg-journey { grid-template-columns: repeat(3, minmax(0, 1fr)); } .mgj-line { display: none; } }
+@media (max-width: 639px) {
+  .mg-journey { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .mgj-stage { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: 14px; }
+}
+
+/* Feature demos */
+.mg-demo { border-radius: 18px; background: color-mix(in oklch, var(--muted) 70%, transparent); border: 1px solid var(--border); padding: 10px; max-width: 520px; margin-inline: auto; width: 100%; }
+.mg-demos { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; }
+.mg-demos > * { grid-column: span 2; }
+.mg-demos > :nth-child(4) { grid-column: 2 / span 2; }
+.mg-demo-card { overflow: hidden; }
+.mg-demo-card .mg-demo { border: 0; border-radius: 0; border-bottom: 1px solid var(--border); max-width: none; }
+@media (max-width: 1023px) { .mg-demos { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mg-demos > *, .mg-demos > :nth-child(4) { grid-column: auto; } }
+@media (max-width: 639px) { .mg-demos { grid-template-columns: minmax(0, 1fr); } }
+
+/* Wizard step illustration */
+.mg-wiz { border-radius: 16px; background: var(--card); border: 1px solid var(--border); padding: 12px 12px 14px; animation: fade-in 220ms var(--ease-out); }
+.mg-wiz figcaption { font-size: 12.5px; color: var(--muted-foreground); text-align: center; margin-top: 6px; }
+@media (max-width: 1023px) {
+  .mg-wiz { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 12px; padding: 8px 12px; }
+  .mg-wiz figcaption { text-align: left; margin: 0; }
+}
+@media (max-width: 639px) { .mg-wiz { grid-template-columns: 104px 1fr; } }
+
+/* Dashboard visuals */
+.mg-life { width: 100%; max-width: 260px; margin-bottom: 4px; }
+.mg-life .mga { animation-iteration-count: 2; }
+.mg-spark { width: 96px; height: 24px; display: block; }
+.mg-spark polyline { stroke-dasharray: 400; stroke-dashoffset: 400; animation: mg-draw 1.1s var(--ease-out) forwards 200ms; }
+.mg-spark circle { opacity: 0; animation: mg-appear 300ms var(--ease-out) forwards 1.1s; }
+@keyframes mg-draw { to { stroke-dashoffset: 0; } }
+@keyframes mg-appear { to { opacity: 1; } }
+.mg-pub { width: 72px; height: 48px; flex-shrink: 0; overflow: visible; }
+.mg-pub-card { transform-box: fill-box; transform-origin: center; animation: mg-pub-in 520ms var(--ease-out) both; }
+@keyframes mg-pub-in { from { transform: translateY(10px) scale(0.9); opacity: 0; } }
+.mg-pub-check { transform-box: fill-box; transform-origin: center; animation: check-pop 420ms var(--ease-out) both 300ms; }
+.mg-ray { opacity: 0; transform-box: fill-box; transform-origin: center; animation: mg-ray 700ms var(--ease-out) both; }
+@keyframes mg-ray { 0% { opacity: 0; transform: scale(0.4); } 40% { opacity: 1; } 100% { opacity: 0; transform: scale(1.3); } }
+
+/* Small functional motion shared by app blocks */
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); position: relative; display: inline-block; margin-left: 2px; }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: live-ring 2.4s ease-out 3; }
+@keyframes live-ring { 0% { transform: scale(1); opacity: 0.6; } 80%, 100% { transform: scale(2.8); opacity: 0; } }
+.mg-nudge { animation: mg-nudge 1.6s var(--ease-out) 2 900ms; }
+@keyframes mg-nudge {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 40%, transparent); }
+  50% { box-shadow: 0 0 0 8px color-mix(in oklch, var(--primary) 0%, transparent); }
+}
+.hand-wave { display: inline-block; transform-origin: 70% 80%; animation: hand-wave 900ms ease-in-out 2; }
+@keyframes hand-wave { 25% { transform: rotate(14deg); } 50% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } }
+
+/* Shared entrance keyframes (also used by app blocks) */
+@keyframes route-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes check-pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes check-draw { to { stroke-dashoffset: 0; } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(4px); } }
+@keyframes field-nudge { 30% { transform: translateX(-3px); } 60% { transform: translateX(2px); } }
+@keyframes tab-ind { from { transform: scaleX(0.3); opacity: 0; } }
+@keyframes nav-ind { from { transform: scaleY(0.2); opacity: 0; } }
+@keyframes dot-ping { 75%, 100% { transform: scale(2.4); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mga, .mg-wave, .mg-ping, .mg-flow, .mg-ring, .mg-hero, .mg-wiz, .mg-spark polyline, .mg-spark circle,
+  .live-dot::after, .mg-nudge, .mg-pub-card, .mg-pub-check, .hand-wave { animation: none !important; }
+  .mg-spark polyline { stroke-dashoffset: 0; }
+  .mg-spark circle { opacity: 1; }
+  .mg .mg-transient, .mgj-hl, .mg-ray, .mg-ring { display: none; }
+}
