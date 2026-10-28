@@ -21,6 +21,8 @@ export async function generateMetadata({ params }: PageProps<"/e/[slug]">): Prom
 /**
  * Friendly event link. Resolves only public, non-draft webinars (get_public_webinar_by_slug); unlisted ones
  * use /register/<id>. Registration still goes through the webinar id, with every database rule applied.
+ * Unknown slugs get a real HTTP 404 from the proxy (src/lib/supabase/proxy.ts) before this page streams;
+ * the notFound() below is the fallback when that check couldn't run.
  */
 export default function EventSlugPage({ params }: PageProps<"/e/[slug]">) {
   return (
@@ -41,4 +43,3 @@ async function EventContent({ params }: Pick<PageProps<"/e/[slug]">, "params">) 
     </EventShell>
   );
 }
-

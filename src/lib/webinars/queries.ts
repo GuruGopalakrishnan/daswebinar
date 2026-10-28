@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import {
   RECORDING_COLUMNS,
@@ -115,8 +116,8 @@ function isMissingSlugMigration(error: { code?: string } | null) {
   return error?.code === "PGRST202" || error?.code === "42703" || error?.code === "42883";
 }
 
-/** Public, non-draft webinar by its friendly slug. Unlisted webinars never resolve here. */
-export async function getPublicWebinarBySlug(slug: string) {
+/** Public, non-draft webinar by its friendly slug. Unlisted webinars never resolve here. Deduplicated per request. */
+export const getPublicWebinarBySlug = cache(async (slug: string) => {
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/i.test(slug) || slug.length > 64) return null;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_public_webinar_by_slug", { p_slug: slug });
@@ -126,7 +127,7 @@ export async function getPublicWebinarBySlug(slug: string) {
   }
   const row = (data as PublicWebinarRow[] | null)?.[0];
   return row ? toPublicWebinarDto(row) : null;
-}
+});
 
 /** The host's own webinar slug (RLS: host only), or null if there is none yet. */
 export async function getHostWebinarSlug(id: string): Promise<string | null> {
