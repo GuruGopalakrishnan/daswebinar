@@ -19,7 +19,6 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
-      { source: "/invite/:token", destination: "/join/:token", permanent: false },
       { source: "/webinars/create", destination: "/dashboard/webinars/new", permanent: false },
       { source: "/billing", destination: "/dashboard/billing", permanent: false },
       { source: "/billing/checkout", destination: "/upgrade", permanent: false },
