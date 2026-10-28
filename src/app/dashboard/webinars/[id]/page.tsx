@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ManageView } from "@/components/webinar/manage-view";
 import { getPlanForRender } from "@/components/dashboard/data";
 import { requireUser } from "@/lib/auth";
-import { getHostWebinar, isUuid, listRecordings, listRegistrations } from "@/lib/webinars/queries";
+import { getHostWebinar, getHostWebinarSlug, isUuid, listRecordings, listRegistrations } from "@/lib/webinars/queries";
 
 export const metadata: Metadata = { title: "Manage webinar" };
 
@@ -27,9 +27,14 @@ async function ManageContent({ params }: Pick<PageProps<"/dashboard/webinars/[id
   // Another host's webinar returns null (RLS), so it 404s rather than revealing it exists.
   const webinar = await getHostWebinar(id);
   if (!webinar) notFound();
-  const [registrations, recordings, plan] = await Promise.all([listRegistrations(id), listRecordings(id), getPlanForRender()]);
+  const [registrations, recordings, plan, slug] = await Promise.all([
+    listRegistrations(id),
+    listRecordings(id),
+    getPlanForRender(),
+    getHostWebinarSlug(id),
+  ]);
 
-  return <ManageView webinar={webinar} registrations={registrations} recordings={recordings} plan={plan} />;
+  return <ManageView webinar={webinar} registrations={registrations} recordings={recordings} plan={plan} slug={slug} />;
 }
 
 function ManageSkeleton() {

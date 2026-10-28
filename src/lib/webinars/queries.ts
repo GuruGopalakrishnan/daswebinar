@@ -9,7 +9,7 @@ import {
   toRegistrationDto,
   toWebinarDto,
 } from "./dto";
-import type { PublicWebinarRow, RecordingRow, RegistrationRow, WebinarRow } from "./types";
+import type { PublicWebinarRow, RecordingRow, RegistrationRow, RegistrationStatus, WebinarRow, WebinarStatus } from "./types";
 
 // All reads use the signed-in user's session; RLS decides visibility.
 
@@ -102,4 +102,89 @@ export async function getRecording(id: string) {
 
 export function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+// ---------------------------------------------------------------------------
+// Event slugs and My events (migration 20261030000000_event_slugs.sql)
+// ---------------------------------------------------------------------------
+// These tolerate a database where that migration hasn't been applied yet: they behave as "not found" /
+// "nothing yet" instead of failing, so deploying the app before the migration can't break existing pages.
+
+/** PostgREST "function not found" / Postgres "undefined column": the slug migration isn't applied. */
+function isMissingSlugMigration(error: { code?: string } | null) {
+  return error?.code === "PGRST202" || error?.code === "42703" || error?.code === "42883";
+}
+
+/** Public, non-draft webinar by its friendly slug. Unlisted webinars never resolve here. */
+export async function getPublicWebinarBySlug(slug: string) {
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/i.test(slug) || slug.length > 64) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_public_webinar_by_slug", { p_slug: slug });
+  if (error) {
+    if (isMissingSlugMigration(error)) return null;
+    throw error;
+  }
+  const row = (data as PublicWebinarRow[] | null)?.[0];
+  return row ? toPublicWebinarDto(row) : null;
+}
+
+/** The host's own webinar slug (RLS: host only), or null if there is none yet. */
+export async function getHostWebinarSlug(id: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("webinars").select("slug").eq("id", id).maybeSingle<{ slug: string }>();
+  if (error) {
+    if (isMissingSlugMigration(error)) return null;
+    throw error;
+  }
+  return data?.slug ?? null;
+}
+
+export type MyRegistration = {
+  registrationId: string;
+  registrationStatus: RegistrationStatus;
+  registeredAt: string;
+  webinarId: string;
+  title: string;
+  startsAt: string;
+  durationMinutes: number;
+  timezone: string;
+  webinarStatus: WebinarStatus;
+  hostName: string | null;
+};
+
+/** The signed-in user's (account or guest session) own registrations. `available: false` before the migration. */
+export async function listMyRegistrations(): Promise<{ available: boolean; items: MyRegistration[] }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_my_registrations");
+  if (error) {
+    if (isMissingSlugMigration(error)) return { available: false, items: [] };
+    throw error;
+  }
+  type Row = {
+    registration_id: string;
+    registration_status: RegistrationStatus;
+    registered_at: string;
+    webinar_id: string;
+    title: string;
+    starts_at: string;
+    duration_minutes: number;
+    timezone: string;
+    webinar_status: WebinarStatus;
+    host_name: string | null;
+  };
+  return {
+    available: true,
+    items: ((data as Row[] | null) ?? []).map((r) => ({
+      registrationId: r.registration_id,
+      registrationStatus: r.registration_status,
+      registeredAt: r.registered_at,
+      webinarId: r.webinar_id,
+      title: r.title,
+      startsAt: r.starts_at,
+      durationMinutes: r.duration_minutes,
+      timezone: r.timezone,
+      webinarStatus: r.webinar_status,
+      hostName: r.host_name,
+    })),
+  };
 }

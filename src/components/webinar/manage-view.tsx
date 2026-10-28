@@ -16,10 +16,17 @@ import { FREE_ATTENDEE_LIMIT, type MyPlan } from "@/lib/billing/plans";
 import { formatClock, formatDate, formatDuration, formatTime } from "@/lib/format";
 import type { RecordingDto, RegistrationDto, WebinarDto } from "@/lib/webinars/dto";
 
-export type ManageViewProps = { webinar: WebinarDto; registrations: RegistrationDto[]; recordings: RecordingDto[]; plan: MyPlan };
+export type ManageViewProps = {
+  webinar: WebinarDto;
+  registrations: RegistrationDto[];
+  recordings: RecordingDto[];
+  plan: MyPlan;
+  /** The webinar slug once the event-slug migration is applied, else null. */
+  slug?: string | null;
+};
 
 /** Manage page body: header with one room action, next step, plan seat notice, and the three tabs. */
-export function ManageView({ webinar, registrations, recordings, plan }: ManageViewProps) {
+export function ManageView({ webinar, registrations, recordings, plan, slug = null }: ManageViewProps) {
   const approved = registrations.filter((r) => r.status === "approved").length;
   const pending = registrations.filter((r) => r.status === "pending").length;
   const seatsTaken = approved + pending;
@@ -36,6 +43,8 @@ export function ManageView({ webinar, registrations, recordings, plan }: ManageV
           ? "near"
           : null;
   const registerPath = `/register/${webinar.id}`;
+  // Friendly links resolve only for public webinars (see migration 20261030000000_event_slugs.sql).
+  const eventPath = slug && webinar.visibility === "public" ? `/e/${slug}` : null;
 
   const nextStep =
     webinar.status === "live" ? (
@@ -175,15 +184,19 @@ export function ManageView({ webinar, registrations, recordings, plan }: ManageV
               ) : (
                 <div className="grid gap-3">
                   <p className="text-sm text-muted-foreground">Anyone with this link can register.</p>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <code className="flex-1 truncate rounded-md border bg-surface-2 px-3 py-2 font-mono text-xs leading-5">{registerPath}</code>
-                    <CopyButton value={registerPath} />
-                    <Button asChild variant="ghost">
-                      <Link href={registerPath} target="_blank">
-                        <ExternalLink /> Preview
-                      </Link>
-                    </Button>
-                  </div>
+                  <ShareRow path={eventPath ?? registerPath} />
+                  {eventPath ? (
+                    <p className="text-xs text-muted-foreground">
+                      Friendly link for this public webinar. The longer link <code className="font-mono">{registerPath}</code> keeps working too.
+                    </p>
+                  ) : (
+                    webinar.visibility === "unlisted" && (
+                      <p className="text-xs text-muted-foreground">
+                        Unlisted webinars use this private link. Friendly <code className="font-mono">/e/…</code> links are only for public webinars,
+                        because they can be guessed.
+                      </p>
+                    )
+                  )}
                 </div>
               )}
             </SectionCard>
@@ -245,6 +258,20 @@ export function ManageView({ webinar, registrations, recordings, plan }: ManageV
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function ShareRow({ path }: { path: string }) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <code className="flex-1 truncate rounded-md border bg-surface-2 px-3 py-2 font-mono text-xs leading-5">{path}</code>
+      <CopyButton value={path} />
+      <Button asChild variant="ghost">
+        <Link href={path} target="_blank">
+          <ExternalLink /> Preview
+        </Link>
+      </Button>
     </div>
   );
 }

@@ -8,7 +8,8 @@ import { browserTimeZone } from "@/lib/time";
 export function LocalTime({ iso, webinarTimeZone }: { iso: string; webinarTimeZone: string }) {
   const mounted = useMounted();
   const zone = mounted ? browserTimeZone() : webinarTimeZone;
-  const differs = mounted && zone !== webinarTimeZone;
+  // Compare the shown times, not zone names: Asia/Calcutta and Asia/Kolkata are the same zone.
+  const differs = mounted && formatTime(iso, zone) !== formatTime(iso, webinarTimeZone);
 
   return (
     <div>

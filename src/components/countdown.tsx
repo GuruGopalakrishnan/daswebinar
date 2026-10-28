@@ -37,7 +37,7 @@ export function Countdown({ to, onDone }: { to: string; onDone?: () => void }) {
   return (
     <div className="flex gap-2" role="timer" aria-label="Time until start">
       {units.map(([label, value]) => (
-        <div key={label} className="min-w-16 rounded-xl border bg-card/60 px-3 py-2 text-center backdrop-blur">
+        <div key={label} className="min-w-16 rounded-xl border bg-card px-3 py-2 text-center shadow-xs">
           <div className="font-mono text-2xl font-semibold tabular-nums">{String(value).padStart(2, "0")}</div>
           <div className="text-[11px] tracking-wide text-muted-foreground uppercase">{label}</div>
         </div>

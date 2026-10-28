@@ -19,7 +19,7 @@ const migration = fs.readFileSync(path.join(migrationsDir, NEW), "utf8");
 
 const db = new PGlite();
 let pass = 0, fail = 0;
-const ok = (cond, label, extra = "") => { cond ? pass++ : fail++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${extra ? "  " + extra : ""}`); };
+const ok = (cond, label, extra = "") => { if (cond) pass++; else fail++; console.log(`${cond ? "PASS" : "FAIL"}  ${label}${extra ? "  " + extra : ""}`); };
 
 // --- Supabase-like environment -------------------------------------------------------------
 await db.exec(`

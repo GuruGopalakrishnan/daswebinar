@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, CalendarPlus, CheckCircle2, Clock, Download, Hourglass, Loader2 } from "lucide-react";
+import { ArrowRight, CalendarPlus, CheckCircle2, Clock, Download, Hourglass, XCircle } from "lucide-react";
+import { Callout } from "@/components/blocks/callout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ import { REGISTERED_EVENT } from "@/components/register/mobile-register-bar";
 import { downloadIcs, googleCalendarUrl } from "@/lib/calendar";
 import { createClient } from "@/lib/supabase/client";
 import { useMounted } from "@/hooks/use-client-values";
+import { cn } from "@/lib/utils";
 import type { CustomField } from "@/lib/webinars/schema";
 import type { RegistrationStatus, WebinarStatus } from "@/lib/webinars/types";
 
@@ -38,44 +40,78 @@ type Props = {
   hasSession: boolean;
   existingStatus: RegistrationStatus | null;
   existingJoinPath: string | null;
+  /** Where this page lives (/e/<slug> or /register/<id>): sign-in returns here. */
+  pagePath?: string;
 };
 
 type Result = { status: RegistrationStatus; joinPath: string | null; hasSession: boolean };
 
-export function RegisterPanel({ webinar, user, hasSession, existingStatus, existingJoinPath }: Props) {
+const fade = { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -4 }, transition: { duration: 0.22 } };
+
+export function RegisterPanel({ webinar, user, hasSession, existingStatus, existingJoinPath, pagePath }: Props) {
   const [result, setResult] = useState<Result | null>(
     existingStatus && existingStatus !== "cancelled"
       ? { status: existingStatus, joinPath: existingJoinPath, hasSession }
       : null,
   );
-
+  const path = pagePath ?? `/register/${webinar.id}`;
   const closed = webinar.status === "ended" || webinar.status === "cancelled";
 
   return (
-    <div className="rounded-2xl border bg-card p-6 shadow-xl shadow-black/5 sm:p-7">
+    <div aria-live="polite">
       <AnimatePresence mode="wait" initial={false}>
         {result ? (
-          <motion.div key="done" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}>
+          <motion.div key="done" {...fade}>
             <Success webinar={webinar} {...result} />
           </motion.div>
         ) : closed ? (
-          <motion.div key="closed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-            <Clock className="mx-auto size-8 text-muted-foreground" />
-            <h2 className="mt-3 font-semibold">{webinar.status === "ended" ? "This webinar has ended" : "This webinar was cancelled"}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Registration is closed.</p>
+          <motion.div key="closed" {...fade}>
+            <StateBlock icon={Clock} tone="muted" title={webinar.status === "ended" ? "This webinar has ended" : "This webinar was cancelled"}>
+              Registration is closed.
+            </StateBlock>
           </motion.div>
         ) : webinar.isFull ? (
-          <motion.div key="full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-            <Hourglass className="mx-auto size-8 text-muted-foreground" />
-            <h2 className="mt-3 font-semibold">This webinar is full</h2>
-            <p className="mt-1 text-sm text-muted-foreground">All seats have been taken. Check back — spots sometimes open up.</p>
+          <motion.div key="full" {...fade}>
+            <StateBlock icon={Hourglass} tone="warn" title="This webinar is full">
+              All seats have been taken, so registration is closed.
+            </StateBlock>
           </motion.div>
         ) : (
-          <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
-            <RegisterForm webinar={webinar} user={user} hasSession={hasSession} onDone={setResult} />
+          <motion.div key="form" {...fade}>
+            <RegisterForm webinar={webinar} user={user} hasSession={hasSession} onDone={setResult} pagePath={path} />
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function StateBlock({
+  icon: Icon,
+  tone,
+  title,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  tone: "success" | "warn" | "danger" | "muted";
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-2 text-center">
+      <span
+        className={cn(
+          "grid size-14 place-items-center rounded-full motion-safe:animate-[check-pop_520ms_var(--ease-out)_both]",
+          tone === "success" && "bg-success-subtle text-success",
+          tone === "warn" && "bg-warning-subtle text-warning-text",
+          tone === "danger" && "bg-destructive-subtle text-destructive",
+          tone === "muted" && "bg-muted text-muted-foreground",
+        )}
+      >
+        <Icon className="size-6" />
+      </span>
+      <h2 className="t-h3">{title}</h2>
+      {children && <p className="text-sm text-pretty text-muted-foreground">{children}</p>}
     </div>
   );
 }
@@ -98,11 +134,13 @@ function RegisterForm({
   user,
   hasSession,
   onDone,
+  pagePath,
 }: {
   webinar: Webinar;
   user: Props["user"];
   hasSession: boolean;
   onDone: (result: Result) => void;
+  pagePath: string;
 }) {
   const [answers, setAnswers] = useState<Record<string, string | boolean>>({});
   const [pending, setPending] = useState(false);
@@ -152,10 +190,10 @@ function RegisterForm({
 
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Save your seat</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {webinar.requiresApproval ? "The host reviews every registration." : "Free · Takes 10 seconds."}
+      <div className="grid gap-1">
+        <h2 className="t-h3">Save your seat</h2>
+        <p className="text-sm text-muted-foreground">
+          {webinar.requiresApproval ? "Free. The host reviews every registration." : "Free. Takes less than a minute."}
         </p>
       </div>
 
@@ -164,11 +202,12 @@ function RegisterForm({
         <Input id="reg-name" name="fullName" autoComplete="name" required defaultValue={user?.name ?? ""} maxLength={100} />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="reg-email">Email</Label>
+        <Label htmlFor="reg-email">Email address</Label>
         <Input
           id="reg-email"
           name="email"
           type="email"
+          inputMode="email"
           autoComplete="email"
           required
           defaultValue={user?.email ?? ""}
@@ -188,7 +227,8 @@ function RegisterForm({
         const invalid = missing.has(f.id) || undefined;
         const label = (
           <>
-            {f.label} {f.required && <span className="text-destructive">*</span>}
+            {f.label} {f.required && <span className="text-destructive" aria-hidden>*</span>}
+            {f.required && <span className="sr-only">(required)</span>}
           </>
         );
         if (f.type === "checkbox") {
@@ -243,23 +283,23 @@ function RegisterForm({
         );
       })}
 
-      {error && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {error && <Callout tone="danger">{error}</Callout>}
 
-      <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
-        {pending ? <Loader2 className="animate-spin" /> : null}
-        Register
+      <Button type="submit" size="lg" loading={pending} className="mt-1 w-full">
+        {pending ? "Registering…" : "Register now · Free"}
         {!pending && <ArrowRight />}
       </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        {webinar.requiresApproval
+          ? "You'll get your join link by email once the host approves you."
+          : "You'll get a confirmation email with your personal join link."}
+      </p>
 
       {!user && (
         <p className="text-center text-xs text-muted-foreground">
           Have an account?{" "}
-          <Link href={`/login?next=${encodeURIComponent(`/register/${webinar.id}`)}`} className="text-foreground underline-offset-4 hover:underline">
-            Log in to register
+          <Link href={`/login?next=${encodeURIComponent(pagePath)}`} className="font-medium text-teal underline-offset-4 hover:underline">
+            Sign in to register
           </Link>
         </p>
       )}
@@ -281,73 +321,80 @@ function Success({ webinar, status, joinPath, hasSession }: { webinar: Webinar }
 
   if (status === "rejected") {
     return (
-      <div className="text-center">
-        <h2 className="font-semibold">Registration not approved</h2>
-        <p className="mt-1 text-sm text-muted-foreground">The host wasn&apos;t able to approve your registration for this webinar.</p>
-      </div>
+      <StateBlock icon={XCircle} tone="danger" title="Registration not approved">
+        The host wasn&apos;t able to approve your registration for this webinar.
+      </StateBlock>
     );
   }
 
   const approved = status === "approved";
   const open = webinar.status === "scheduled" || webinar.status === "live";
   const canJoin = approved && hasSession && open;
+  const live = webinar.status === "live";
 
   return (
-    <div className="text-center">
-      <motion.div
-        initial={{ scale: 0.5, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", bounce: 0.5 }}
-        className={`mx-auto flex size-14 items-center justify-center rounded-full ${approved ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
-      >
-        {approved ? <CheckCircle2 className="size-7" /> : <Hourglass className="size-7" />}
-      </motion.div>
-      <h2 className="mt-4 text-lg font-semibold">{approved ? "You're registered!" : "Request received"}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+    <div className="grid gap-4">
+      <StateBlock icon={approved ? CheckCircle2 : Hourglass} tone={approved ? "success" : "warn"} title={approved ? "You're registered!" : "Registration received"}>
         {approved
-          ? "Add it to your calendar so you don't miss it."
-          : "The host will review your registration. Check back on this page for updates."}
-      </p>
+          ? live
+            ? "The webinar is live. Join now."
+            : "Add it to your calendar so you don't miss it. Your join link is also in your inbox."
+          : "The host approves each registration. We'll email your join link once you're approved."}
+      </StateBlock>
 
-      <div className="mt-6 grid gap-2">
-        {canJoin && (
-          <Button asChild size="lg" className={webinar.status === "live" ? "bg-live text-white hover:bg-live/90" : undefined}>
-            <Link href={`/room/${webinar.id}`}>
-              {webinar.status === "live" ? "Join live now" : "Go to the room"} <ArrowRight />
-            </Link>
+      {canJoin && (
+        <Button asChild size="lg" className={cn("w-full", live && "bg-live text-white hover:bg-live/90")}>
+          <Link href={`/room/${webinar.id}`}>
+            {live ? "Join live now" : "Join webinar"} <ArrowRight />
+          </Link>
+        </Button>
+      )}
+      {canJoin && !live && (
+        <p className="-mt-2 text-center text-xs text-muted-foreground">
+          Join opens the waiting room. It becomes the live room when the host starts.
+        </p>
+      )}
+
+      {approved && (
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" onClick={() => downloadIcs(event)}>
+            <Download /> Apple / Outlook
           </Button>
-        )}
-        {approved && (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => downloadIcs(event)}>
-              <Download /> .ics file
-            </Button>
-            <Button asChild variant="outline">
-              <a href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
-                <CalendarPlus /> Google
-              </a>
-            </Button>
-          </div>
-        )}
-        {approved && open && joinPath && (
-          <div className="mt-2 rounded-lg border bg-muted/40 p-3 text-left">
-            <p className="text-xs font-medium">Your personal join link</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Save it to join from any device. It&apos;s yours alone, so don&apos;t share it.
-            </p>
-            <CopyButton value={joinPath} size="sm" className="mt-2 w-full" label="Copy join link" />
-          </div>
-        )}
-        {approved && !hasSession && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            To chat and ask questions live,{" "}
-            <Link href={`/signup`} className="text-foreground underline-offset-4 hover:underline">
-              create a free account
-            </Link>{" "}
-            with the same email, then log in and register again.
-          </p>
-        )}
-      </div>
+          <Button asChild variant="outline">
+            <a href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer">
+              <CalendarPlus /> Google
+            </a>
+          </Button>
+        </div>
+      )}
+
+      {approved && open && joinPath && (
+        <div className="rounded-lg border bg-surface-2 p-3 text-left">
+          <p className="text-xs font-semibold">Your personal join link</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Save it to join from any device. It&apos;s yours alone, so don&apos;t share it.</p>
+          <CopyButton value={joinPath} size="sm" className="mt-2 w-full" label="Copy join link" />
+        </div>
+      )}
+
+      {hasSession && (
+        <p className="text-center text-xs text-muted-foreground">
+          See all your registrations in{" "}
+          <Link href="/my-events" className="font-medium text-teal underline-offset-4 hover:underline">
+            My events
+          </Link>
+          .
+        </p>
+      )}
+      {approved && !hasSession && (
+        // No session means guest sign-ins are off in Supabase, so attendees need an account to enter the room.
+        <p className="text-center text-xs text-muted-foreground">
+          To chat and ask questions live,{" "}
+          <Link href="/signup" className="font-medium text-teal underline-offset-4 hover:underline">
+            create a free account
+          </Link>{" "}
+          with the same email, then sign in and register again.
+        </p>
+      )}
     </div>
   );
 }
