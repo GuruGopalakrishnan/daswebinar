@@ -17,7 +17,7 @@ export function UserMenu({ id, name, email }: { id: string; name: string; email:
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex w-full items-center gap-2.5 rounded-md p-1.5 text-left outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full items-center gap-2.5 rounded-md p-1.5 text-left outline-none transition-colors duration-[220ms] hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
         aria-label="Account menu"
       >
         <UserAvatar name={name} id={id} className="size-7" />
