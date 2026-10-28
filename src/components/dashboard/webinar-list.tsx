@@ -112,8 +112,8 @@ export function WebinarList({ items }: { items: WebinarListItem[] }) {
   }
 
   return (
-    <div className="min-w-0 rounded-xl border bg-card shadow-card">
-      <div className="flex items-center gap-1 overflow-x-auto border-b p-2 scrollbar-thin" role="tablist" aria-label="Filter webinars">
+    <div className="min-w-0">
+      <div className="flex gap-1 overflow-x-auto border-b px-2 [scrollbar-width:none] md:px-4" role="tablist" aria-label="Filter webinars">
         {FILTERS.map((f) => {
           const active = f.id === filter;
           return (
@@ -123,17 +123,19 @@ export function WebinarList({ items }: { items: WebinarListItem[] }) {
               aria-selected={active}
               onClick={() => setFilter(f.id)}
               className={cn(
-                "relative flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                "relative flex shrink-0 cursor-pointer items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors duration-[180ms] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
                 active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
+              {f.label}
+              <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">{counts[f.id]}</span>
               {active && (
-                <motion.span layoutId="webinar-filter" className="absolute inset-0 rounded-md bg-accent" transition={{ type: "spring", bounce: 0.15, duration: 0.35 }} />
+                <motion.span
+                  layoutId="webinar-filter"
+                  className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-teal"
+                  transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
+                />
               )}
-              <span className="relative">{f.label}</span>
-              <span className="relative rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
-                {counts[f.id]}
-              </span>
             </button>
           );
         })}
@@ -151,23 +153,24 @@ export function WebinarList({ items }: { items: WebinarListItem[] }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="group relative flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-accent/40"
+                className="group relative flex items-center gap-4 px-4 py-3.5 transition-colors duration-[220ms] hover:bg-[color-mix(in_oklch,var(--accent)_60%,transparent)] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-ring md:px-6"
               >
-                <div className="hidden size-11 shrink-0 flex-col items-center justify-center rounded-lg border bg-background sm:flex">
-                  <span className="text-[10px] font-medium text-muted-foreground uppercase">{item.monthLabel}</span>
-                  <span className="text-sm leading-none font-semibold">{item.dayLabel}</span>
+                <div aria-hidden className="flex size-12 shrink-0 flex-col items-center justify-center rounded-md border bg-card md:size-14">
+                  <span className="text-[11px] tracking-[.06em] text-muted-foreground uppercase">{item.monthLabel}</span>
+                  <span className="text-lg leading-[22px] font-semibold">{item.dayLabel}</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/dashboard/webinars/${item.id}`}
-                      className="truncate font-medium after:absolute after:inset-0 focus-visible:outline-none"
+                      className="truncate font-semibold after:absolute after:inset-0 focus-visible:outline-none"
                     >
                       {item.title}
                     </Link>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.status} className="max-sm:hidden" />
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <StatusBadge status={item.status} className="sm:hidden" />
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="size-3.5" /> {item.whenLabel}
                     </span>

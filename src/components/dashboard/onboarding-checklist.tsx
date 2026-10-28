@@ -1,5 +1,4 @@
 import { Check } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 export type OnboardingStep = {
@@ -12,48 +11,60 @@ export type OnboardingStep = {
 };
 
 /**
- * First-run guide on the dashboard. Every step's "done" comes from real data
- * (webinars, registrations, live sessions), so it can't drift from reality.
+ * First-run guide ("Get set up"). Every step's "done" comes from real data (webinars, registrations, live
+ * sessions), so it can't drift from reality. The current step is highlighted and carries its own button.
  */
 export function OnboardingChecklist({ steps, className }: { steps: OnboardingStep[]; className?: string }) {
   const done = steps.filter((s) => s.done).length;
   const current = steps.find((s) => !s.done)?.id;
 
   return (
-    <section aria-labelledby="onboarding-heading" className={cn("rounded-2xl border bg-card shadow-card", className)}>
-      <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+    <section aria-labelledby="onboarding-heading" className={cn("min-w-0 rounded-xl border border-border/85 bg-card shadow-card", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6 md:py-4">
         <div>
-          <h2 id="onboarding-heading" className="font-display text-2xl leading-tight">
+          <h2 id="onboarding-heading" className="text-base leading-6 font-semibold">
             Get your first webinar live
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">Four steps. Most hosts finish in under ten minutes.</p>
+          <p className="text-sm text-muted-foreground">Four steps. Most hosts finish in under ten minutes.</p>
         </div>
         <div className="flex items-center gap-3 sm:w-48">
-          <Progress value={(done / steps.length) * 100} className="h-1.5" aria-label={`${done} of ${steps.length} steps done`} />
+          <div
+            role="progressbar"
+            aria-label={`${done} of ${steps.length} steps done`}
+            aria-valuemin={0}
+            aria-valuemax={steps.length}
+            aria-valuenow={done}
+            className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
+          >
+            <span className="block h-full rounded-full bg-teal transition-[width] duration-300 ease-out" style={{ width: `${(done / steps.length) * 100}%` }} />
+          </div>
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {done}/{steps.length}
+            {done} of {steps.length} done
           </span>
         </div>
       </div>
 
-      <ol className="divide-y">
+      <ol>
         {steps.map((step, i) => {
           const isCurrent = step.id === current;
           return (
             <li
               key={step.id}
-              className={cn("flex gap-4 p-5 sm:items-center sm:px-6", isCurrent && "bg-primary/[0.035]")}
+              className={cn(
+                "flex gap-4 border-b px-4 py-3.5 last:border-b-0 sm:items-center md:px-6",
+                isCurrent && "bg-[color-mix(in_oklch,var(--teal-subtle)_55%,transparent)]",
+              )}
               aria-current={isCurrent ? "step" : undefined}
             >
               <span
                 className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium tabular-nums transition-colors",
-                  step.done && "border-success/30 bg-success/15 text-success",
-                  isCurrent && "border-primary bg-primary text-primary-foreground",
-                  !step.done && !isCurrent && "text-muted-foreground",
+                  "grid size-7 shrink-0 place-items-center rounded-full text-[13px] font-semibold tabular-nums transition-colors duration-[220ms]",
+                  step.done && "bg-teal text-teal-foreground",
+                  isCurrent && "bg-primary text-primary-foreground",
+                  !step.done && !isCurrent && "bg-muted text-muted-foreground",
                 )}
               >
-                {step.done ? <Check className="size-4" aria-label="Done" /> : i + 1}
+                {step.done ? <Check className="size-3.5" aria-label="Done" /> : i + 1}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
