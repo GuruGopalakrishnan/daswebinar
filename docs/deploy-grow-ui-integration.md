@@ -210,7 +210,7 @@ None of these is production-ready, whatever the prototype shows. Order = depende
 | 4 | Waitlist | `registration_status` + `waitlisted`; promote on cancel/cap raise; email | 3 | M |
 | 5 | Attendance tracking | `attendance_sessions` (join/leave per registration, via DB function on presence join + heartbeat) | — | M |
 | 6 | Offers / CTA | `offers`, `offer_events` (impression/click), `show_offer()` broadcast | 5 | M |
-| 7 | Analytics + CSV export | Views over 5/6 + registrations; streamed CSV route (host-only) | 5, 6 | M |
+| 7 | Analytics + attendance export | Views over 5/6 + registrations; streamed CSV route (host-only). (A client-side CSV export of registrations already exists on the manage page.) | 5, 6 | M |
 | 8 | Custom reminders | `reminder_schedules`; generalise `email_kind` + cron | — | M |
 | 9 | Email + CSV invitations | `invitations` table, CSV parse (size/row caps), send via email pipeline, unsubscribe | 8 | M |
 | 10 | Branding | `workspaces`/`brand` columns, Supabase Storage bucket with RLS | — | M |
@@ -322,3 +322,29 @@ Tokens, brand, primitives, app blocks and all prototype motion scenes ported; de
   `/recordings` (exact). `/register/:id`, `/join/:token` and every existing route are unchanged.
 - **Not done yet:** Terms, Privacy and Contact pages (need real legal text and a contact inbox), onboarding restyle
   (Phase 3), `/e/:slug` event aliases (need the `slug` migration).
+
+### Phase 3 (2026-10-28): app shell, dashboard, onboarding, wizard, manage page
+- **Shell** (`components/dashboard/app-shell.tsx`): 248 px sidebar with grouped nav and a plan box from
+  `get_my_plan`, sticky top bar, sheet navigation under 1024 px. Same routes and `requireUser()` checks.
+- **Dashboard** (`components/dashboard/dashboard-view.tsx`): one primary action and a next-step line derived from
+  real webinars; Free usage bar; setup checklist + lifecycle scene for new accounts; stat cards from real counts
+  only (no attendance/revenue until that data exists); restyled webinar list (same delete/copy behaviour).
+- **Onboarding**: prototype three-step flow. Answers saved with `supabase.auth.updateUser` on the account's
+  own metadata (`onboarding_work`, `onboarding_goal`); no schema change.
+- **Wizard**: prototype layout (step list, scene, progress, sticky footer); steps, validation and API calls unchanged.
+- **Manage page** (`components/webinar/manage-view.tsx`): header, next step, callouts, stat/section cards, line tabs.
+  Tabs stay in-page; per-tab routes deferred.
+- **Previews**: `/dev/ui/dashboard?state=…`, `/dev/ui/onboarding`, `/dev/ui/wizard`, `/dev/ui/manage` render the real
+  components with labelled sample props (404 in production), because the real pages need a Supabase session.
+
+## 15. Production readiness backlog (pending)
+
+| Item | Status |
+|---|---|
+| Real Supabase authentication and email verification testing (sign-up, confirm, sign-in, magic link, reset, resend) | Pending: needs configured Supabase credentials |
+| Razorpay test-mode checkout (subscribe, verify, webhook, cancel) | Pending |
+| Agora live webinar verification (host publish, screen share, attendee view, reconnect) | Pending |
+| Real mobile-device testing (iOS Safari, Android Chrome) | Pending: only headless Chromium-based checks so far |
+| Terms, Privacy and Contact pages | Pending: need real legal text and a support address from the owner |
+| Bot protection (Turnstile on register, login, sign-up; then Supabase CAPTCHA) | Pending |
+| Production environment configuration checks (Supabase Site URL / Redirect URLs, Vercel env, Agora certificate, Razorpay keys + webhook, Resend domain, `CRON_SECRET`, pg_cron job) | Pending |
