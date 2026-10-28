@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, CameraOff, Check, Loader2, Mic, MicOff, Volume2 } from "lucide-react";
+import { Camera, CameraOff, Check, Mic, MicOff, Volume2 } from "lucide-react";
+import { Ticks } from "@/components/blocks/lists";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserAvatar } from "@/components/user-avatar";
@@ -69,10 +70,10 @@ function DeviceSelect({
 }) {
   if (devices.length === 0) return null;
   return (
-    <label className="grid gap-1.5 text-xs text-white/60">
+    <label className="grid gap-1.5 text-xs text-muted-foreground">
       {label}
       <Select value={value ?? ""} onValueChange={onChange}>
-        <SelectTrigger className="w-full border-white/10 bg-white/5 text-white">
+        <SelectTrigger className="w-full">
           <SelectValue placeholder="System default" />
         </SelectTrigger>
         <SelectContent>
@@ -127,107 +128,119 @@ export function PreJoin({
           : null;
 
   return (
-    <div className="dark flex min-h-dvh items-center justify-center bg-stage p-4 text-white">
-      <div className="grid w-full max-w-4xl gap-6 md:grid-cols-[1.4fr_1fr] md:items-center">
-        <div className="relative aspect-video overflow-hidden rounded-3xl bg-black/40 ring-1 ring-white/10">
+    <div className="dark flex min-h-dvh items-center justify-center bg-background p-4 text-foreground">
+      <div className="grid w-full max-w-4xl grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:items-center">
+        <div className="relative aspect-video overflow-hidden rounded-2xl bg-stage shadow-[0_0_0_1px_oklch(1_0_0/0.04),0_12px_32px_-16px_rgb(0_0_0/0.5)]">
           {isHost && media.camera ? (
             <video ref={preview} autoPlay playsInline muted className="size-full -scale-x-100 object-cover" />
           ) : (
             <div className="flex size-full flex-col items-center justify-center gap-3">
               <UserAvatar name={name} className="size-20 text-xl" />
-              {isHost && <p className="text-sm text-white/50">{media.busy === "camera" ? "Starting camera…" : "Camera is off"}</p>}
+              {isHost && <p className="text-sm text-muted-foreground">{media.busy === "camera" ? "Starting camera…" : "Camera is off"}</p>}
             </div>
           )}
 
           {isHost && (
             <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 p-4">
-              <button
-                type="button"
-                onClick={() => void media.toggleMic()}
-                aria-label={media.micOn ? "Mute microphone" : "Unmute microphone"}
-                className={cn(
-                  "relative flex size-12 items-center justify-center rounded-full transition-colors",
-                  media.micOn ? "bg-white/15 hover:bg-white/25" : "bg-destructive hover:bg-destructive/90",
-                )}
-              >
+              <DockButton on={media.micOn} onClick={() => void media.toggleMic()} label={media.micOn ? "Mute microphone" : "Unmute microphone"}>
                 {media.micOn ? <Mic className="size-5" /> : <MicOff className="size-5" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => void media.toggleCamera()}
-                aria-label={media.camera ? "Turn camera off" : "Turn camera on"}
-                className={cn(
-                  "flex size-12 items-center justify-center rounded-full transition-colors",
-                  media.camera ? "bg-white/15 hover:bg-white/25" : "bg-destructive hover:bg-destructive/90",
-                )}
-              >
+              </DockButton>
+              <DockButton on={media.camera !== null} onClick={() => void media.toggleCamera()} label={media.camera ? "Turn camera off" : "Turn camera on"}>
                 {media.camera ? <Camera className="size-5" /> : <CameraOff className="size-5" />}
-              </button>
+              </DockButton>
             </div>
           )}
         </div>
 
         <div className="grid gap-5">
-          <div>
-            <p className="text-xs font-medium tracking-wider text-white/50 uppercase">{isHost ? "Get ready" : "You're about to join"}</p>
-            <h1 className="mt-1 font-display text-3xl leading-tight text-balance">{title}</h1>
+          <div className="grid gap-1">
+            <p className="eyebrow">{isHost ? "Get ready" : "You're about to join"}</p>
+            <h1 className="t-h2">{title}</h1>
           </div>
 
-          {errorText && <p className="rounded-xl bg-destructive/15 p-3 text-sm text-red-200">{errorText}</p>}
+          {errorText && (
+            <p role="alert" className="rounded-md border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-destructive-subtle px-4 py-3 text-sm">
+              {errorText}
+            </p>
+          )}
 
-          {isHost && (
+          {isHost ? (
             <>
               <div className="grid gap-1.5">
-                <div className="flex items-center justify-between text-xs text-white/60">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>Microphone</span>
-                  <span>{media.micOn ? (level > 0.08 ? "We hear you" : "Say something…") : "Muted"}</span>
+                  <span aria-live="polite">{media.micOn ? (level > 0.08 ? "We hear you" : "Say something…") : "Muted"}</span>
                 </div>
                 <div className="flex h-2 gap-1" aria-hidden>
                   {Array.from({ length: 16 }, (_, i) => (
-                    <span
-                      key={i}
-                      className={cn("flex-1 rounded-full transition-colors duration-75", media.micOn && level * 16 > i ? "bg-primary" : "bg-white/10")}
-                    />
+                    <span key={i} className={cn("flex-1 rounded-full transition-colors duration-75", media.micOn && level * 16 > i ? "bg-teal" : "bg-muted")} />
                   ))}
                 </div>
               </div>
               <DeviceSelect label="Camera" devices={media.devices.cameras} value={media.cameraId} onChange={(id) => void media.selectDevice("camera", id)} />
               <DeviceSelect label="Microphone" devices={media.devices.mics} value={media.micId} onChange={(id) => void media.selectDevice("mic", id)} />
             </>
+          ) : (
+            <div className="grid gap-2">
+              <p className="text-sm font-semibold">Before you join</p>
+              <Ticks
+                className="text-sm text-muted-foreground"
+                items={[
+                  "Use Chrome, Edge, Safari or Firefox",
+                  "Headphones give the best sound",
+                  "You watch and listen; use chat and Q&A to take part",
+                  "On a phone? Turn it sideways for a bigger view",
+                ]}
+              />
+            </div>
           )}
 
           <DeviceSelect label="Speaker" devices={media.devices.speakers} value={media.speakerId} onChange={(id) => void media.selectDevice("speaker", id)} />
 
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-white/15 bg-white/5 text-white hover:bg-white/10"
-              onClick={() => void speaker.play()}
-              disabled={speaker.playing}
-            >
-              <Volume2 /> {speaker.playing ? "Playing…" : "Test speakers"}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void speaker.play()} disabled={speaker.playing}>
+              <Volume2 /> {speaker.playing ? "Playing…" : "Test my speakers"}
             </Button>
             {!speaker.heard && !speaker.playing && (
-              <button type="button" className="text-xs text-white/50 underline-offset-2 hover:underline" onClick={() => speaker.setHeard(true)}>
+              <button type="button" className="cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => speaker.setHeard(true)}>
                 I heard it
               </button>
             )}
             {speaker.heard && (
-              <span className="inline-flex items-center gap-1 text-xs text-primary">
+              <span className="inline-flex items-center gap-1 text-xs text-teal">
                 <Check className="size-3.5" /> Sound works
               </span>
             )}
           </div>
 
-          <Button size="lg" className="h-12 rounded-full text-base" onClick={onJoin} disabled={media.busy !== null}>
-            {media.busy !== null && <Loader2 className="animate-spin" />}
+          <Button size="lg" className="w-full" onClick={onJoin} loading={media.busy !== null}>
             {isHost ? "Enter studio" : "Join webinar"}
           </Button>
-          {isHost && <p className="text-xs text-white/50">Attendees can&apos;t see or hear you until you press Go live.</p>}
+          <p className="text-xs text-muted-foreground">
+            {isHost
+              ? "Attendees can't see or hear you until you press Go live."
+              : "If the host hasn't started yet, you'll wait in the room until they do."}
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Round mic/camera toggle on the preview (44 px target; red when off). */
+function DockButton({ on, onClick, label, children }: { on: boolean; onClick: () => void; label: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={on}
+      className={cn(
+        "flex size-11 cursor-pointer items-center justify-center rounded-xl transition-[background-color,transform] duration-[180ms] active:scale-[0.94] focus-visible:outline-2 focus-visible:outline-ring",
+        on ? "bg-card text-foreground hover:bg-accent" : "bg-destructive text-white hover:bg-destructive/90",
+      )}
+    >
+      {children}
+    </button>
   );
 }
