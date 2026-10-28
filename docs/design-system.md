@@ -38,13 +38,53 @@ screen as that screen is ported.
 
 ## Components
 
-Primitives are shadcn/Radix in `src/components/ui/`. App-level building blocks:
+Every component and motion graphic is on the dev-only gallery at **`/dev/ui`** (`npm run dev`; 404 in production).
+
+### Primitives (`src/components/ui/`, shadcn/Radix restyled to Deploy & Grow)
+
+| Component | Variants / notes |
+|---|---|
+| `Button` | `default` (navy, the one primary action), `teal` (secondary emphasis, soft), `outline`, `secondary`, `ghost`, `link` (teal), `destructive`, `success`. Sizes `xs/sm/default/lg/icon*`; taller on phones. **`cta`** (min 180 px) marks the screen's main next step. **`loading`** shows a spinner and blocks clicks |
+| `Badge` | `default` (neutral), `teal`, `success`, `warning`, `danger`, `live` (+ `PingDot`), `navy`, `sample` (marks example/simulated data; never remove it) |
+| `Input`, `Textarea`, `SelectTrigger` | Shared `field-styles.ts`: card surface, soft focus ring, nudge + red glow on `aria-invalid` |
+| `Card`, `Dialog`, `AlertDialog`, `Sheet`, `Popover`, menus | Calm border, `shadow-card`; overlays use the navy `scrim` with a slight blur and `shadow-elevated` |
+| `Switch`, `Checkbox`, `Progress`, `Tabs` | Teal when on/checked; line tabs get an animated teal underline |
+| `Toaster` | Navy toasts |
+
+**Primary CTA rule:** one `default` button per screen. Give the main next step `cta`, and put a `NextStep` sentence
+under the header when the next action isn't obvious. Teal buttons are never a second primary.
+
+### App blocks
 
 | Component | File | Use |
 |---|---|---|
-| `PageHeader` | `src/components/page-header.tsx` | Title + one line of context + actions. Stacks on phones |
-| `StatCard` | `src/components/stat-card.tsx` | One metric. `tone="live"` turns red only when the value is above 0 |
-| `EmptyState` | `src/components/empty-state.tsx` | Icon tile, one sentence, one next step. Every list needs one |
+| `PageHeader` | `src/components/page-header.tsx` | Breadcrumbs (`crumbs`), title + one line of context, actions, optional `nextStep`. Stacks on phones |
+| `StatCard` | `src/components/stat-card.tsx` | One metric. `tone="live"` turns red only when the value is above 0. Optional `spark` and `delta` (real data only) |
+| `EmptyState` | `src/components/empty-state.tsx` | Soft teal tile (or `art`), one sentence, one next step. Every list needs one |
+| `Callout` | `src/components/blocks/callout.tsx` | `info` / `warn` / `danger` (role=alert) / `success` message with optional action |
+| `KeyValue`, `Ticks`, `Breadcrumbs` | `src/components/blocks/lists.tsx` | Detail lists, check-mark feature lists, breadcrumb trail |
+| `SectionCard`, `SettingRow`, `Advanced`, `NextStep`, `UsageMeter`, `cardInteractive` | `src/components/blocks/surfaces.tsx` | Card with head/body, setting with control, collapsible advanced options (`<details>`), next-step line, plan usage bar, hover lift for clickable cards |
+| `ChoiceCard`, `Segmented`, `WizardSteps`, `WizardProgress` | `src/components/blocks/choices.tsx` | Selectable cards (native radio/checkbox), segmented toggle, wizard step list and progress bar |
+| `SuccessBurst` | `src/components/blocks/success-burst.tsx` | Success moment for publish / upgrade |
+
+### Motion graphics (`src/components/motion-graphics/`)
+
+Original SVG scenes ported from the approved prototype. Timings are built by `Timeline` (`timeline.ts`) into
+`@keyframes` once at module load and hoisted with React's `<style precedence>`; no `innerHTML`, no per-frame
+JavaScript, only transform / opacity / stroke-dashoffset. `MotionScene` runs a scene only while it is on screen and
+the tab is visible; under `prefers-reduced-motion` each scene shows its composed still frame. Styles:
+`src/app/motion-graphics.css`.
+
+| Scene | File | Where it goes |
+|---|---|---|
+| `HeroScene` (10 s) | `hero.tsx` | Landing hero |
+| `JourneyScene` (10 s) | `journey.tsx` | How it works |
+| `FeatureDemo kind=registration/poll/engagement/recording/conversion` (8 s) | `feature-demos.tsx` | Features page, landing feature grid |
+| `LifecycleScene` (8 s, plays twice) | `lifecycle.tsx` | Dashboard empty states (`EmptyState art`) |
+| `WizardScene step data` (5 s, plays once per step) | `wizard-scene.tsx` | Beside the create-webinar wizard; shows what the host typed as plain text |
+| `Sparkline`, `PublishArt` | `small.tsx` | Stat cards, publish success |
+
+Import each scene from its own file (no barrel), so client components don't pull in the larger scenes.
 | `OnboardingChecklist` | `src/components/dashboard/onboarding-checklist.tsx` | First-run steps derived from real data |
 | `Reveal` | `src/components/motion.tsx` | Scroll-in entrance for sections |
 | `CopyButton` | `src/components/copy-button.tsx` | Copy a link with toast feedback |

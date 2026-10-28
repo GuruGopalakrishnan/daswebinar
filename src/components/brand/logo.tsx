@@ -13,7 +13,7 @@ export function LogoMark({ className }: { className?: string }) {
       )}
     >
       <span>
-        D<b className="font-bold text-teal">&amp;</b>G
+        D<b className="font-bold text-[oklch(0.86_0.07_180)] dark:text-teal">&amp;</b>G
       </span>
     </span>
   );
