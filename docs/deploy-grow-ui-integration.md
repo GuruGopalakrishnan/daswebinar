@@ -304,3 +304,21 @@ message rate; Supabase Pro plan required for >200 concurrent).
 | 6 | Billing, recordings, profile settings | Razorpay test mode; recording recovery |
 | 7 | Backlog in §7 order, each with migration + tests | Per feature |
 | 8 | Security pass (Turnstile, rate limits, RLS review), perf, load tests 50/80/100 | Release gate |
+
+## 14. Progress log
+
+### Phase 1 (2026-10-28): design system, components, motion graphics
+Tokens, brand, primitives, app blocks and all prototype motion scenes ported; dev gallery at `/dev/ui`
+(404 in production). See `docs/design-system.md`.
+
+### Phase 2 (2026-10-28): public pages, auth UI, aliases
+- **Pages:** `/`, `/features`, `/how-it-works`, `/pricing` in `src/app/(marketing)` with the prototype's header,
+  footer and sections. Scenes: hero (landing), journey (landing, how it works), feature demos (landing, features).
+- **Honest copy:** prototype features that aren't built (paid tickets, offers, automated webinars, analytics,
+  co-hosts, layouts, six-digit codes) are labelled "Coming soon" or left out. Plan lists come from `plans.ts`.
+- **Auth:** prototype layout and form styling on the existing Supabase actions. Added `/verify-email` (resend
+  confirmation link via `supabase.auth.resend`) and an expired-link view. Magic-link sign-in kept. No OTP.
+- **Aliases** (307, `next.config.ts`): `/invite/:token`, `/webinars/create`, `/billing`, `/billing/checkout`,
+  `/recordings` (exact). `/register/:id`, `/join/:token` and every existing route are unchanged.
+- **Not done yet:** Terms, Privacy and Contact pages (need real legal text and a contact inbox), onboarding restyle
+  (Phase 3), `/e/:slug` event aliases (need the `slug` migration).

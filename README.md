@@ -7,8 +7,11 @@ and Razorpay (subscriptions). All code here is original. The brand name lives in
 
 | Route | What it is |
 |---|---|
-| `/` | Landing page: fully static (no auth lookup, CSS-only motion), benefit-led copy, ₹ pricing |
-| `/login`, `/signup` | Auth. `/signup?plan=pro` sends the user to checkout right after they confirm their email |
+| `/`, `/features`, `/how-it-works`, `/pricing` | Marketing pages (`src/app/(marketing)`): fully static, no auth lookup; animated SVG scenes run only while on screen. Unbuilt features are labelled "Coming soon" |
+| `/login`, `/signup` | Auth. `/signup?plan=pro` sends the user to checkout right after they confirm their email. Login also offers an email sign-in link |
+| `/verify-email` | "Check your inbox" with a resend button for accounts waiting on email confirmation |
+| `/forgot-password`, `/reset-password` | Password reset. Expired or other-browser links land on `/forgot-password?error=link` |
+| `/invite/:token`, `/webinars/create`, `/billing`, `/billing/checkout`, `/recordings` | Aliases from the Deploy & Grow prototype (307 to the real routes, `next.config.ts`) |
 | `/dashboard` | Stats, plan banner, webinar list |
 | `/dashboard/webinars/new`, `…/[id]/edit` | 5-step wizard |
 | `/dashboard/webinars/[id]` | Manage page: share link, registrations, recordings (by URL) |

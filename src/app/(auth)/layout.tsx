@@ -1,38 +1,29 @@
 import { Logo } from "@/components/brand/logo";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Ticks } from "@/components/blocks/lists";
 
+// The side panel only lists what the product does today.
+const POINTS = ["Registration pages in minutes", "Personal join links, nothing to install", "Chat, Q&A and polls in one studio"];
+
+/** Auth screens: navy side panel on desktop, a single centred card on phones (logo on top). */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-dvh flex-1 lg:grid-cols-2">
-      <div className="flex flex-col">
-        <header className="flex h-14 items-center justify-between px-6">
-          <Logo />
-          <ThemeToggle />
-        </header>
-        <main className="flex flex-1 items-center justify-center px-6 py-10">
-          <div className="w-full max-w-sm">{children}</div>
-        </main>
-      </div>
-
-      <aside className="relative hidden overflow-hidden border-l bg-card lg:block" aria-hidden>
-        <div className="bg-dots absolute inset-0 opacity-60" />
-        <div className="absolute top-1/4 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-primary/25 blur-[100px]" />
-        <div className="relative flex h-full flex-col justify-end p-12">
-          <blockquote className="max-w-md">
-            <p className="text-2xl font-medium tracking-tight text-balance">
-              “The best webinars feel like conversations. Give your audience a voice — chat, questions, polls — and
-              they&apos;ll stay to the end.”
-            </p>
-          </blockquote>
-          <div className="mt-8 flex gap-2">
-            {["Chat", "Q&A", "Polls", "Reactions", "Recordings"].map((t) => (
-              <span key={t} className="rounded-full border bg-background/60 px-3 py-1 text-xs text-muted-foreground backdrop-blur">
-                {t}
-              </span>
-            ))}
-          </div>
+    <div className="grid min-h-dvh flex-1 grid-cols-[minmax(0,1fr)] lg:grid-cols-2">
+      <aside className="hidden flex-col justify-between gap-8 bg-primary p-12 text-primary-foreground lg:flex">
+        <Logo inverted />
+        <div className="flex max-w-[420px] flex-col gap-4">
+          <p className="t-h1">Host webinars your audience remembers.</p>
+          <Ticks items={POINTS} className="text-[15px] [&_svg]:text-[oklch(0.86_0.07_180)]" />
         </div>
+        <p className="text-sm text-primary-foreground/70">webinar.deployandgrow.com</p>
       </aside>
+      <main id="main" className="flex flex-col items-center px-4 pt-8 pb-12 sm:px-6 lg:justify-center lg:py-12">
+        <div className="flex w-full max-w-[400px] flex-col gap-6">
+          <div className="lg:hidden">
+            <Logo />
+          </div>
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

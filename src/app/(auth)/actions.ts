@@ -8,6 +8,8 @@ import { getSiteUrl } from "@/lib/site-url";
 
 export type AuthFormState = {
   error?: string;
+  /** Optional next step shown with the error. */
+  errorLink?: { href: string; label: string };
   message?: string;
   fieldErrors?: Record<string, string[] | undefined>;
 };
@@ -40,7 +42,10 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
     if (error.code === "email_not_confirmed") {
-      return { error: "Confirm your email first — we sent you a link when you signed up." };
+      return {
+        error: "Confirm your email first. We sent you a link when you signed up.",
+        errorLink: { href: "/verify-email", label: "Send the link again" },
+      };
     }
     // Generic message: don't reveal whether the email exists.
     return { error: "Invalid email or password." };
@@ -99,6 +104,25 @@ export async function sendMagicLink(
   }
 
   return { message: "If that account exists, a sign-in link is on its way." };
+}
+
+/** Re-sends the sign-up confirmation link. Same answer whether or not the account exists. */
+export async function resendConfirmation(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const parsed = magicLinkSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: parsed.data.email,
+    options: { emailRedirectTo: await callbackUrl(safeNextPath(formData.get("next"), "/onboarding")) },
+  });
+  if (error?.status === 429) {
+    return { error: "Too many requests. Wait a minute, then try again." };
+  }
+  return { message: `If ${parsed.data.email} is waiting for confirmation, a new link is on its way.` };
 }
 
 export async function signOut() {

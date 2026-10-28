@@ -5,23 +5,15 @@ import { safeNextPath } from "@/lib/auth";
 import { PRO_PRICE_INR, formatInr } from "@/lib/billing/plans";
 import { signUp } from "../actions";
 import { AuthForm } from "../auth-form";
+import { AuthHeading, authLinkClass } from "../auth-heading";
 
-export const metadata: Metadata = { title: "Sign up" };
+export const metadata: Metadata = { title: "Create your account" };
 
 export default function SignupPage({ searchParams }: PageProps<"/signup">) {
   return (
-    <div className="grid gap-8">
-      <Suspense fallback={<div className="h-96" />}>
-        <SignupContent searchParams={searchParams} />
-      </Suspense>
-
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
-          Log in
-        </Link>
-      </p>
-    </div>
+    <Suspense fallback={<div className="h-[28rem]" />}>
+      <SignupContent searchParams={searchParams} />
+    </Suspense>
   );
 }
 
@@ -33,23 +25,26 @@ async function SignupContent({ searchParams }: Pick<PageProps<"/signup">, "searc
 
   return (
     <>
-      <div className="grid gap-1.5">
-        <h1 className="font-display text-3xl tracking-tight">{pro ? "Start with Pro" : "Create your account"}</h1>
-        <p className="text-sm text-muted-foreground">
-          {pro
-            ? `Create your account, then finish payment (${formatInr(PRO_PRICE_INR)}/month). Cancel any time.`
-            : "Your first webinar is free. No card needed."}
-        </p>
-      </div>
+      <AuthHeading title={pro ? "Start with Pro" : "Create your account"}>
+        {pro
+          ? `Create your account, confirm your email, then finish payment (${formatInr(PRO_PRICE_INR)}/month). Cancel any time.`
+          : "Free plan, no card needed."}{" "}
+        Already have an account?{" "}
+        <Link href={next === "/onboarding" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className={authLinkClass}>
+          Sign in
+        </Link>
+      </AuthHeading>
 
       <AuthForm
         action={signUp}
         next={next}
+        success="check-email"
         submitLabel="Create account"
+        pendingLabel="Creating account…"
         fields={[
-          { name: "fullName", label: "Name", type: "text", autoComplete: "name", placeholder: "Your full name" },
-          { name: "email", label: "Email", type: "email", autoComplete: "email", placeholder: "you@example.com" },
-          { name: "password", label: "Password", type: "password", autoComplete: "new-password", placeholder: "At least 8 characters" },
+          { name: "fullName", label: "Full name", type: "text", autoComplete: "name" },
+          { name: "email", label: "Email address", type: "email", autoComplete: "email", placeholder: "you@example.com" },
+          { name: "password", label: "Password", type: "password", autoComplete: "new-password", meter: true },
         ]}
       />
     </>

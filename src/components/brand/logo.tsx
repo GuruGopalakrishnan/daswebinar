@@ -2,34 +2,40 @@ import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
-/** "D&G" monogram: navy tile with a teal ampersand. */
-export function LogoMark({ className }: { className?: string }) {
+/** "D&G" monogram: navy tile with a teal ampersand. `inverted` is for navy backgrounds. */
+export function LogoMark({ className, inverted = false }: { className?: string; inverted?: boolean }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "inline-grid h-8 w-[34px] shrink-0 place-items-center rounded-md bg-primary text-[11px] font-bold tracking-[-0.04em] whitespace-nowrap text-primary-foreground",
+        "inline-grid h-8 w-[34px] shrink-0 place-items-center rounded-md text-[11px] font-bold tracking-[-0.04em] whitespace-nowrap",
+        inverted ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground",
         className,
       )}
     >
       <span>
-        D<b className="font-bold text-[oklch(0.86_0.07_180)] dark:text-teal">&amp;</b>G
+        D<b className={cn("font-bold", inverted ? "text-teal" : "text-[oklch(0.86_0.07_180)] dark:text-teal")}>&amp;</b>G
       </span>
     </span>
   );
 }
 
-export function Logo({ href = "/", className }: { href?: string; className?: string }) {
+export function Logo({ href = "/", className, inverted = false }: { href?: string; className?: string; inverted?: boolean }) {
   return (
     <Link
       href={href}
       aria-label={`${BRAND.name} home`}
-      className={cn("inline-flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.02em] whitespace-nowrap", className)}
+      className={cn(
+        "inline-flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.02em] whitespace-nowrap",
+        inverted && "text-primary-foreground",
+        className,
+      )}
     >
-      <LogoMark />
+      <LogoMark inverted={inverted} />
       {/* Wordmark hides on very narrow phones, like the prototype. */}
       <span className="max-[380px]:hidden">
-        Deploy &amp; Grow <small className="text-[15px] font-medium text-muted-foreground">Webinar</small>
+        Deploy &amp; Grow{" "}
+        <small className={cn("text-[15px] font-medium", inverted ? "text-primary-foreground/70" : "text-muted-foreground")}>Webinar</small>
       </span>
     </Link>
   );
