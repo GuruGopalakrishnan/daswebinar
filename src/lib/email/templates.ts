@@ -81,7 +81,7 @@ export function renderEmail(kind: EmailKind, c: EmailContext): OutgoingEmail {
   const duration = formatDuration(c.webinar.durationMinutes);
   const hello = `Hi ${firstName(c.attendeeName)},`;
   const live = kind === "live";
-  const accent = live ? "#e11d48" : "#4f46e5";
+  const accent = live ? "#cc3336" : "#13575e";
 
   const text = [
     hello,
@@ -109,7 +109,7 @@ export function renderEmail(kind: EmailKind, c: EmailContext): OutgoingEmail {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;">
 <tr><td style="padding:28px 32px 0;font-size:15px;font-weight:700;letter-spacing:-0.01em;">${escapeHtml(BRAND.name)}</td></tr>
 <tr><td style="padding:24px 32px 0;">
-${live ? `<span style="display:inline-block;background:#ffe4e6;color:#e11d48;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">● LIVE NOW</span>` : ""}
+${live ? `<span style="display:inline-block;background:#fdeceb;color:#cc3336;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">● LIVE NOW</span>` : ""}
 <h1 style="margin:${live ? "14px" : "0"} 0 0;font-size:24px;line-height:1.25;letter-spacing:-0.02em;">${escapeHtml(t.heading)}</h1>
 <p style="margin:16px 0 0;font-size:15px;line-height:1.6;color:#3f3f46;">${escapeHtml(hello)}</p>
 <p style="margin:8px 0 0;font-size:15px;line-height:1.6;color:#3f3f46;">${escapeHtml(t.intro)}</p>

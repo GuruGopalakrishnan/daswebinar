@@ -1,7 +1,7 @@
 // Product name and tagline in one place. Change these to rebrand.
 export const BRAND = {
-  name: "Onstage",
-  tagline: "Live webinars that feel premium",
+  name: "Deploy & Grow Webinar",
+  tagline: "Host better webinars. Turn more attendees into customers.",
   description:
-    "Host live webinars your audience remembers. HD video, smooth screen sharing, polls, Q&A and reactions — built for coaches and creators in India.",
+    "Create professional webinars, engage your audience, collect registrations and grow your business, all from one simple platform. Built for coaches, consultants, educators and creators in India.",
 } as const;

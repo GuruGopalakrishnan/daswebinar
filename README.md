@@ -1,4 +1,4 @@
-# Onstage (webinar platform)
+# Deploy & Grow Webinar (webinar platform)
 
 A webinar platform built with Next.js 16 (App Router), Supabase (auth, Postgres, Realtime), Agora (live video)
 and Razorpay (subscriptions). All code here is original. The brand name lives in `src/lib/brand.ts`.
@@ -228,7 +228,7 @@ going live; failures are logged.
 **Setup**
 
 1. Resend → **Domains**: add and verify your domain (DNS records). Then set `RESEND_API_KEY`,
-   `EMAIL_FROM="Onstage <hello@yourdomain.com>"` and `SUPABASE_SERVICE_ROLE_KEY` (in Vercel too).
+   `EMAIL_FROM="Deploy & Grow Webinar <hello@yourdomain.com>"` and `SUPABASE_SERVICE_ROLE_KEY` (in Vercel too).
    Before the domain is verified, `onboarding@resend.dev` works but only delivers to your own Resend address.
 2. Set `CRON_SECRET` to a long random string.
 3. Call `/api/cron/emails` every 5 minutes. Vercel's free plan only runs crons once a day, so use Supabase

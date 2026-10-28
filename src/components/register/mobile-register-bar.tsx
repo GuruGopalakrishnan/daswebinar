@@ -6,7 +6,7 @@ import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /** Fired by RegisterPanel once a registration succeeds. */
-export const REGISTERED_EVENT = "onstage:registered";
+export const REGISTERED_EVENT = "dg:registered";
 
 /**
  * Phones and tablets: the form sits below the webinar details, so keep a

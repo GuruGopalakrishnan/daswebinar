@@ -1,32 +1,40 @@
 # Design system
 
-Onstage's look: warm ivory neutrals, one deep-teal accent, an editorial serif for moments and a clean sans for
-work. Calm, generous spacing; motion that confirms rather than decorates. Tokens live in `src/app/globals.css`.
+Deploy & Grow Webinar's look (approved UI Prototype V1): calm cool neutrals, a muted navy primary, a soft teal
+accent, and Geist for everything. A quiet light workspace; the studio and attendee room are a separate dark world.
+Motion confirms rather than decorates. Tokens live in `src/app/globals.css`.
 
 ## Tokens
 
 | Group | Tokens | Notes |
 |---|---|---|
-| Surfaces | `background`, `card`, `popover`, `muted`, `accent`, `sidebar` | Warm ivory (light) / warm charcoal (dark). Never pure white page backgrounds |
+| Surfaces | `background`, `card`, `popover`, `muted`, `accent`, `surface-2`, `sidebar` | Cool off-white (light) / slate navy (dark). Never pure white page backgrounds |
 | Text | `foreground`, `muted-foreground` | Muted is for secondary lines only, never for primary actions |
-| Brand | `primary` (teal), `highlight` (amber) | One primary action per view. Highlight is for badges and unread counts |
-| Status | `live` (red), `success`, `warning`, `destructive` | `live` means on air only; errors use `destructive` |
-| Stage | `stage` | Near-black canvas for the live room (always dark) |
-| Radius | `--radius` 0.75rem → `rounded-md/lg/xl/2xl` | Inputs/buttons `md`, cards `xl`, feature panels `2xl`, pills `full` |
-| Elevation | `shadow-card`, `shadow-elevated` | Cards get `shadow-card` + a 1px border. `elevated` for floating forms |
-| Motion | `ease-soft`, `ease-spring` | 150–300 ms for UI feedback, ≤ 400 ms for entrances. `prefers-reduced-motion` turns it all off |
+| Brand | `primary` (muted navy), `teal` + `teal-subtle` (soft accent), `highlight` (amber) | One primary action per view. Teal for secondary emphasis, links and info callouts. Highlight for attention dots, unread counts and raised hands (black text) |
+| Status | `live` (red), `success`, `warning`, `destructive`, each with a `*-subtle` background; `warning-text` | `live` means on air only; errors use `destructive` |
+| Stage | `stage`, `stage-foreground` | Near-black navy canvas for the live room (always dark) |
+| Radius | `sm` 6 · `md` 8 · `lg` 10 · `xl` 14 · `2xl` 18 px | Inputs/buttons `md`, cards `xl`, dialogs and feature panels `2xl`, pills `full` |
+| Elevation | `shadow-xs`, `shadow-card`, `shadow-raise`, `shadow-elevated` | Cards get `shadow-card` + a 1px border. `raise` on hover, `elevated` for popovers and floating forms |
+| Motion | `ease-soft`, `ease-out`, `ease-in-out`, `ease-spring` | Press 120 ms, tabs 180 ms, UI 220 ms, route 260 ms, modal 240 ms. `prefers-reduced-motion` turns it all off |
 
 ## Typography
 
-| Use | Style |
-|---|---|
-| Marketing and event moments (landing hero, registration title, auth headings, onboarding card) | `font-display` (Instrument Serif), large, tight leading |
-| App page titles | `PageHeader`: Geist, `text-2xl`/`28px`, `font-semibold`, `tracking-tight` |
-| Body | Geist 14–16 px; `text-pretty` for paragraphs, `text-balance` for headings |
-| Numbers (stats, countdowns, timers) | `tabular-nums` so they don't jitter |
+Geist only (Geist Mono for codes and IDs). Utility classes in `globals.css`:
 
-Rule of thumb: the serif is for things people *feel* (a webinar's name, a welcome); the sans is for things people
-*do* (dashboards, forms, controls).
+| Class | Size / line (phones) | Weight | Use |
+|---|---|---|---|
+| `t-display` | 56/60 (38/44) | 650 | Landing hero only |
+| `t-h1` | 40/48 (30/38) | 650 | Public page titles, event title |
+| `t-h2` | 28/36 (24/32) | 600 | Section titles; app page titles (`PageHeader`) |
+| `t-h3` | 20/28 | 600 | Card titles |
+| `t-title` | 16/24 | 600 | List item titles |
+| `t-lead` | 18/28, muted | 400 | Intro paragraph under a title |
+| `overline` | 11/16 uppercase, tracked | 600 | Eyebrow labels |
+| Body | 14/20 in the app, 16/24 on public pages | 400 | `text-pretty` for paragraphs |
+| Numbers | `tabular-nums` | | Stats, countdowns, timers |
+
+`font-display` is a transitional alias (Geist 600) for headings that used the old serif. Remove it from each
+screen as that screen is ported.
 
 ## Components
 
