@@ -1,0 +1,20 @@
+/* Abstract cover art (ported from UI Prototype V1): flat shapes on a brand colour. Used for marketing
+   cards now and for webinar covers later. Decorative only. */
+.cover { position: relative; overflow: hidden; background: var(--cv-bg, var(--primary)); color: var(--cv-fg, #fff); }
+.cover::before, .cover::after { content: ""; position: absolute; border-radius: 9999px; }
+.cover > * { position: relative; z-index: 1; }
+.cover.c1 { --cv-bg: oklch(0.27 0.06 262); }
+.cover.c1::before { width: 60%; aspect-ratio: 1; right: -15%; top: -30%; background: oklch(0.52 0.09 192); }
+.cover.c1::after { width: 22%; aspect-ratio: 1; right: 30%; bottom: -8%; background: oklch(0.78 0.14 78); }
+.cover.c2 { --cv-bg: oklch(0.52 0.09 192); }
+.cover.c2::before { width: 70%; height: 30%; left: -10%; bottom: 10%; border-radius: 12px; background: oklch(0.27 0.06 262); }
+.cover.c2::after { width: 18%; aspect-ratio: 1; right: 12%; top: 16%; background: oklch(0.95 0.03 190); }
+.cover.c3 { --cv-bg: oklch(0.95 0.03 85); --cv-fg: oklch(0.24 0.012 260); }
+.cover.c3::before { width: 46%; aspect-ratio: 1; right: -6%; bottom: -24%; background: oklch(0.78 0.14 78); }
+.cover.c3::after { width: 30%; aspect-ratio: 1; right: 22%; top: -10%; background: oklch(0.27 0.06 262); }
+.cover.c4 { --cv-bg: oklch(0.21 0.022 262); }
+.cover.c4::before { inset: auto 8% 14% 8%; height: 8%; border-radius: 4px; background: oklch(0.74 0.1 190); }
+.cover.c4::after { width: 26%; aspect-ratio: 1; right: 8%; top: 12%; background: oklch(0.62 0.08 300); }
+.cover.c5 { --cv-bg: oklch(0.62 0.08 300); }
+.cover.c5::before { width: 80%; aspect-ratio: 1; left: -30%; top: -40%; background: oklch(0.27 0.06 262); }
+.cover.c5::after { width: 16%; aspect-ratio: 1; right: 14%; bottom: 14%; background: oklch(0.95 0.03 190); }

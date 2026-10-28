@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import { MotionScene } from "./motion-scene";
 import { Av, CoverGradient, Cursor, P, SceneStyles, Txt, Wave, ink } from "./svg";
 import { Timeline } from "./timeline";
@@ -123,15 +124,17 @@ const art: ((grad: string) => ReactNode)[] = [
   ),
 ];
 
+// Copy describes what the product does today. `soon` stages show the approved art with a "Soon" label.
 const STAGES = [
-  ["Create", "Set the title, date and price in five short steps."],
+  ["Create", "Set the title, date and your registration questions in five short steps."],
   ["Register", "People sign up from your page and get reminders."],
   ["Go live", "Present slides or your screen from the browser."],
   ["Engage", "Chat, Q&A, polls and reactions keep people with you."],
-  ["Convert", "Show your offer at the right moment and see who clicks."],
-].map(([title, text], i) => ({
+  ["Convert", "Show your offer at the right moment and see who clicks.", "soon"],
+].map(([title, text, soon], i) => ({
   title,
   text,
+  soon: soon === "soon",
   highlight: tl.win(`mgjs${i}`, i * 2, i * 2 + 1.8, "scale(.98)", 0.3),
   line: tl.grow(`mgjl${i}`, i * 2 + 1.4, 9.6, "X", 0.6),
   gradient: `mgj-cov${i}`,
@@ -163,7 +166,10 @@ export function JourneyScene({ className }: { className?: string }) {
           </div>
           <div className="mgj-text">
             <span className="mgj-n">{i + 1}</span>
-            <b>{s.title}</b>
+            <b>
+              {s.title}
+              {s.soon && <Badge className="ml-2 h-5 align-middle text-[11px]">Soon</Badge>}
+            </b>
             <p>{s.text}</p>
           </div>
           {i < STAGES.length - 1 && (

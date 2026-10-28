@@ -112,3 +112,6 @@
   .mg-spark circle { opacity: 1; }
   .mg .mg-transient, .mgj-hl, .mg-ray, .mg-ring { display: none; }
 }
+
+/* Marketing: poll bars fill in once (features studio preview). */
+@keyframes poll-fill { from { transform: scaleX(0); } }

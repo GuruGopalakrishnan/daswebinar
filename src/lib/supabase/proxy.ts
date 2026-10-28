@@ -6,7 +6,7 @@ const PROTECTED_PREFIXES = ["/dashboard", "/room", "/recordings", "/upgrade", "/
 /** Guest (anonymous) sessions only reach attendee pages; these need a real account. */
 const ACCOUNT_PREFIXES = ["/dashboard", "/upgrade", "/onboarding"];
 const AUTH_PAGES = ["/login", "/signup"];
-const PUBLIC_PATHS = ["/", "/pricing"];
+const PUBLIC_PATHS = ["/", "/pricing", "/features", "/how-it-works"];
 
 /**
  * Refreshes the Supabase session cookie on every matched request and applies

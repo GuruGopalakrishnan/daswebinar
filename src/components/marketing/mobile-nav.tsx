@@ -3,42 +3,39 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { NavLinks } from "./nav-links";
 
-export function MobileNav({ items }: { items: { href: string; label: string }[] }) {
+export function MobileNav() {
   const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Open menu">
+        <Button variant="ghost" size="icon" className="min-[900px]:hidden" aria-label="Open menu">
           <Menu />
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-72">
+      <SheetContent side="right" className="w-[min(320px,85vw)]">
         <SheetHeader>
-          <SheetTitle>Menu</SheetTitle>
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          <Logo />
         </SheetHeader>
-        <nav aria-label="Mobile" className="flex flex-col gap-1 px-4">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="rounded-md px-3 py-2 text-sm hover:bg-accent"
-            >
-              {item.label}
+        <NavLinks className="flex flex-col gap-1 px-4" linkClassName="min-h-11 flex items-center" onNavigate={close} />
+        <div className="mt-2 grid gap-2 px-4">
+          <Button asChild size="lg">
+            <Link href="/signup" onClick={close}>
+              Start free
             </Link>
-          ))}
-          <div className="mt-4 grid gap-2">
-            <Button asChild variant="outline">
-              <Link href="/login" onClick={() => setOpen(false)}>Log in</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/signup" onClick={() => setOpen(false)}>Start free</Link>
-            </Button>
-          </div>
-        </nav>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/login" onClick={close}>
+              Sign in
+            </Link>
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   );
