@@ -1,20 +1,26 @@
 // Phase 4 integration check against a STAGING Supabase project (never production).
 //
-//   1. Create .env.staging.local (gitignored by .env*) with:
-//        STAGING_PROJECT_REF=abcd1234          the staging project's ref
-//        STAGING_SUPABASE_URL=https://abcd1234.supabase.co
-//        STAGING_SUPABASE_ANON_KEY=...
-//        STAGING_SUPABASE_SERVICE_ROLE_KEY=... (creates and deletes test users; stays on this machine)
+//   1. Add the staging ref to APPROVED_STAGING_REFS in scripts/staging-guard.mjs (a reviewed commit).
+//   2. Create .env.staging.local (gitignored by .env*) with:
+//        STAGING_PROJECT_REF=abcdefghijklmnopqrst   optional; must match if set
+//        STAGING_SUPABASE_URL=https://abcdefghijklmnopqrst.supabase.co
+//        STAGING_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...  client-level access (signed-out, guests, users)
+//        STAGING_SUPABASE_SECRET_KEY=sb_secret_...            server-side only: creates and deletes test users
 //        STAGING_APP_URL=http://127.0.0.1:3123  optional: an app build pointed at staging, for HTTP checks
-//   2. Apply the migrations to staging (docs/staging-runbook.md).
-//   3. node scripts/staging-check.mjs --i-confirm-this-is-staging
+//   3. npx supabase link --project-ref <ref>, then apply the migrations (docs/staging-runbook.md).
+//   4. node scripts/staging-check.mjs --approved-ref=<ref>
 //
-// Creates confirmed test users (@example.com, no email sent), webinars and registrations, checks the rules,
-// then deletes everything it created. Requires "Allow anonymous sign-ins" on the staging project.
+// Refuses to run unless the flag, the approved list, the linked project and the URL all name the same unprotected
+// ref, neither key appears in the app's env files, and that project's own API accepts both keys (two read-only
+// probes; scripts/staging-guard.mjs). Key values are never printed. Creates confirmed test users (@example.com, no
+// email sent), webinars and registrations tagged with this run, checks the rules, then deletes only rows it can
+// confirm it created.
+// Requires "Allow anonymous sign-ins" on the staging project.
 
 import { readFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { verifyStagingTarget, StagingGuardError, isOwnedTestUser, isOwnedTestWebinar, testEmail } from "./staging-guard.mjs";
 
 function loadEnv(file) {
   if (!existsSync(file)) return;
@@ -25,32 +31,25 @@ function loadEnv(file) {
 }
 loadEnv(".env.staging.local");
 
-const REF = process.env.STAGING_PROJECT_REF;
 const URL_ = process.env.STAGING_SUPABASE_URL;
-const ANON = process.env.STAGING_SUPABASE_ANON_KEY;
-const SERVICE = process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY;
+const PUBLISHABLE = process.env.STAGING_SUPABASE_PUBLISHABLE_KEY;
+const SECRET = process.env.STAGING_SUPABASE_SECRET_KEY;
 const APP = process.env.STAGING_APP_URL;
 
-// --- safety: staging only --------------------------------------------------------------
-if (!process.argv.includes("--i-confirm-this-is-staging")) {
-  console.error("Refusing to run without --i-confirm-this-is-staging. Never point this at production.");
+// --- safety: staging only (fails closed; see scripts/staging-guard.mjs) ------------------
+let REF;
+try {
+  const read = (f) => (existsSync(f) ? readFileSync(f, "utf8") : "");
+  REF = await verifyStagingTarget({
+    approvedArg: process.argv.find((a) => a.startsWith("--approved-ref="))?.slice("--approved-ref=".length),
+    env: process.env,
+    linkedRef: read("supabase/.temp/project-ref") || null,
+    otherEnvText: [".env", ".env.local", ".env.production", ".env.production.local"].map(read).join("\n"),
+  });
+} catch (e) {
+  if (!(e instanceof StagingGuardError)) throw e;
+  console.error(`Refusing to run: ${e.message}`);
   process.exit(2);
-}
-for (const [k, v] of Object.entries({ STAGING_PROJECT_REF: REF, STAGING_SUPABASE_URL: URL_, STAGING_SUPABASE_ANON_KEY: ANON, STAGING_SUPABASE_SERVICE_ROLE_KEY: SERVICE })) {
-  if (!v) {
-    console.error(`Missing ${k} in .env.staging.local. See the header of scripts/staging-check.mjs.`);
-    process.exit(2);
-  }
-}
-if (!URL_.includes(`${REF}.supabase.co`)) {
-  console.error(`STAGING_SUPABASE_URL (${URL_}) is not the project ${REF}. Stopping.`);
-  process.exit(2);
-}
-for (const f of [".env.local", ".env.production", ".env.production.local"]) {
-  if (existsSync(f) && readFileSync(f, "utf8").includes(REF)) {
-    console.error(`${f} mentions ${REF}: that looks like the app's main project, not a separate staging project. Stopping.`);
-    process.exit(2);
-  }
 }
 
 // --- harness -----------------------------------------------------------------------------
@@ -59,15 +58,15 @@ const check = (ok, label, extra = "") => {
   results.push(ok);
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${extra ? "  " + extra : ""}`);
 };
-const admin = createClient(URL_, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
-const fresh = () => createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+const admin = createClient(URL_, SECRET, { auth: { persistSession: false, autoRefreshToken: false } });
+const fresh = () => createClient(URL_, PUBLISHABLE, { auth: { persistSession: false, autoRefreshToken: false } });
 const run = `stg${Date.now().toString(36)}`;
 const created = { users: [], webinars: [] };
 const password = `T3st-${randomUUID()}`;
 
 async function account(label) {
-  const email = `${run}-${label}@example.com`;
-  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: `${label} ${run}` } });
+  const email = testEmail(run, label);
+  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: `${label} ${run}`, staging_run: run } });
   if (error) throw new Error(`createUser ${label}: ${error.message}`);
   created.users.push(data.user.id);
   const client = fresh();
@@ -76,7 +75,7 @@ async function account(label) {
 }
 async function guest(name) {
   const client = fresh();
-  const { data, error } = await client.auth.signInAnonymously({ options: { data: { full_name: name } } });
+  const { data, error } = await client.auth.signInAnonymously({ options: { data: { full_name: name, staging_run: run } } });
   if (error) throw new Error(`Anonymous sign-in failed (${error.message}). Enable it in staging: Authentication → Sign In / Providers.`);
   created.users.push(data.user.id);
   return { id: data.user.id, client };
@@ -172,7 +171,8 @@ try {
   check(((await gA.client.from("webinars").select("id")).data ?? []).length === 0, "guests cannot read the webinars table");
   check(((await anon.from("registrations").select("id")).data ?? []).length === 0, "signed-out visitors cannot read registrations");
   check(((await other.client.from("registrations").select("id").eq("webinar_id", small.id)).data ?? []).length === 0, "another host cannot read these registrations");
-  const guestHost = await gA.client.from("webinars").insert({ title: "guest host", starts_at: future }).select("id");
+  const guestHost = await gA.client.from("webinars").insert({ title: `Guest host ${run}`, starts_at: future }).select("id");
+  if (guestHost.data?.[0]?.id) created.webinars.push(guestHost.data[0].id);
   check(Boolean(guestHost.error), "guests cannot create webinars");
 
   // App HTTP (optional)
@@ -189,9 +189,29 @@ try {
 } catch (e) {
   check(false, "run aborted", e.message);
 } finally {
-  for (const id of created.webinars) await admin.from("webinars").delete().eq("id", id);
-  for (const id of created.users) await admin.auth.admin.deleteUser(id).catch(() => {});
-  console.log(`\nCleaned up ${created.webinars.length} webinars and ${created.users.length} users.`);
+  // Delete only what this run created, re-checked against the stored row (tag, email, title, host).
+  const owned = [];
+  for (const id of created.users) {
+    const { data } = await admin.auth.admin.getUserById(id);
+    if (isOwnedTestUser(data?.user, run, created.users)) owned.push(id);
+    else console.log(`KEEP  user ${id}: not recognised as this run's test user`);
+  }
+  let removedWebinars = 0;
+  for (const id of created.webinars) {
+    const { data } = await admin.from("webinars").select("id, host_id, title").eq("id", id).maybeSingle();
+    if (!isOwnedTestWebinar(data, run, created.webinars, owned)) {
+      console.log(`KEEP  webinar ${id}: not recognised as this run's test webinar`);
+      continue;
+    }
+    const del = await admin.from("webinars").delete().eq("id", id).eq("host_id", data.host_id).eq("title", data.title);
+    if (!del.error) removedWebinars++;
+  }
+  let removedUsers = 0;
+  for (const id of owned) {
+    const del = await admin.auth.admin.deleteUser(id).catch((e) => ({ error: e }));
+    if (!del?.error) removedUsers++;
+  }
+  console.log(`\nCleaned up ${removedWebinars}/${created.webinars.length} webinars and ${removedUsers}/${created.users.length} users.`);
   const failed = results.filter((r) => !r).length;
   console.log(`${results.length - failed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

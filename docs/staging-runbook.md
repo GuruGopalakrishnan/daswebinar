@@ -10,7 +10,7 @@ explicit approval after staging passes.
 | A new, empty Supabase project for staging (not the production project) | Supabase dashboard | Reuse the production project |
 | A Supabase access token (`npx supabase login`, opens the browser) | Supabase CLI's own store on your machine | Paste it in chat or commit it |
 | The staging database password | Typed when the CLI asks, or `SUPABASE_DB_PASSWORD` in your shell | Commit it |
-| Staging URL, anon key, service-role key | `.env.staging.local` (gitignored by `.env*`) | Put staging keys in `.env.local`, or commit them |
+| Staging URL, publishable key (`sb_publishable_…`), secret key (`sb_secret_…`) from Settings → API Keys | `.env.staging.local` (gitignored by `.env*`) | Put staging keys in `.env.local`, print them, or commit them |
 
 Staging settings to match production: **Authentication → Sign In / Providers → Allow anonymous sign-ins: on**.
 **Authentication → URL Configuration**: Site URL = the staging app URL (or `http://localhost:3123` for a local build),
@@ -72,20 +72,40 @@ npx supabase migration list --linked # all eight now show a Remote version
 ## 5. Verify
 
 ```bash
-# .env.staging.local: STAGING_PROJECT_REF, STAGING_SUPABASE_URL, STAGING_SUPABASE_ANON_KEY,
-#                     STAGING_SUPABASE_SERVICE_ROLE_KEY, optional STAGING_APP_URL
-node scripts/staging-check.mjs --i-confirm-this-is-staging
+# 1. Add <STAGING_REF> to APPROVED_STAGING_REFS in scripts/staging-guard.mjs (reviewed commit).
+# 2. .env.staging.local: STAGING_SUPABASE_URL, STAGING_SUPABASE_PUBLISHABLE_KEY (sb_publishable_...),
+#    STAGING_SUPABASE_SECRET_KEY (sb_secret_..., server-side only), optional STAGING_PROJECT_REF and STAGING_APP_URL
+npm run test:staging-guard
+node scripts/staging-check.mjs --approved-ref=<STAGING_REF>
 ```
 
-It refuses to run without the flag, when the URL doesn't match `STAGING_PROJECT_REF`, or when `.env.local` / production
-env files mention that ref. It creates test users (`@example.com`, created confirmed so no email is sent), webinars and
-registrations, checks the rules, and deletes them afterwards.
+It fails closed, and it checks everything before it creates any test data:
+
+1. **Local checks.** `--approved-ref`, `APPROVED_STAGING_REFS`, the linked project (`supabase/.temp/project-ref`) and
+   the URL must name the same project. It always refuses the production project (`xktlibiflgzsuonutsxe`) and
+   `rplbnqpbdanqhnugzyxy`, which stays protected until its dependants are verified. The keys must have the
+   `sb_publishable_` / `sb_secret_` format (legacy JWT keys are refused). The app's own env files (`.env`, `.env.local`,
+   `.env.production*`) must not contain the ref or either key.
+2. **Key ownership.** Publishable and secret keys don't say which project they belong to, so the script proves it
+   with two read-only requests, sent only to `https://<STAGING_REF>.supabase.co` and only after step 1 passes:
+   `GET /auth/v1/settings` with the publishable key, and `GET /auth/v1/admin/users?page=1&per_page=1` with the secret
+   key. Supabase rejects a key from any other project with 401, so both must return 200. Any other status, a redirect,
+   a timeout or a network error stops the run. Only the status code is read: each response body is cancelled without
+   being read, parsed or logged, and key values never appear in output. A 200 from the admin endpoint does mean the
+   server sent back up to one user record from the staging project; the script discards it unread.
+
+Limitation: the ownership proof needs network access and relies on Supabase's gateway rejecting other projects' keys.
+If a key is wrongly copied from another project, it is sent to the staging host (over HTTPS, to Supabase only) before
+being rejected; the env-file check in step 1 catches the app's own keys before any request.
+
+It creates test users (`@example.com`, created confirmed so no email is sent), webinars and registrations tagged with
+the run id, checks the rules, and deletes only rows it can re-confirm it created.
 
 To include the app's HTTP checks (`/e/…` 404s, `/register/…`, `/join/…`), run a build pointed at staging in another
 terminal and set `STAGING_APP_URL=http://127.0.0.1:3123`:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=<staging url> NEXT_PUBLIC_SUPABASE_ANON_KEY=<staging anon key> \
+NEXT_PUBLIC_SUPABASE_URL=<staging url> NEXT_PUBLIC_SUPABASE_ANON_KEY=<staging publishable key> \
 NEXT_PUBLIC_SITE_URL=http://localhost:3123 npm run build && npx next start -p 3123
 ```
 
