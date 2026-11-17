@@ -28,7 +28,7 @@ export function PollOverlay({ polls, isHost, actions }: { polls: Poll[]; isHost:
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 24 }}
           transition={{ type: "spring", bounce: 0.2, duration: 0.45 }}
-          className="absolute top-20 right-4 z-20 w-[min(88vw,320px)] rounded-2xl bg-card p-4 text-card-foreground shadow-2xl ring-1 ring-black/5"
+          className="absolute top-20 right-4 z-20 w-[min(88vw,320px)] rounded-2xl border bg-card p-4 text-card-foreground shadow-elevated"
           role="dialog"
           aria-label="Poll"
         >
@@ -51,11 +51,19 @@ function PollBody({ poll, isHost, actions, onDismiss }: { poll: Poll; isHost: bo
   return (
     <>
       <div className="flex items-start gap-2">
-        <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-teal-subtle text-teal">
           <BarChart3 className="size-3.5" />
         </span>
-        <p className="flex-1 text-sm font-medium">{poll.question}</p>
-        <button type="button" onClick={onDismiss} aria-label="Hide poll" className="-mt-1 -mr-1 rounded-full p-1 text-muted-foreground hover:bg-accent">
+        <div className="min-w-0 flex-1">
+          <p className="eyebrow">Live poll</p>
+          <p className="text-sm font-semibold">{poll.question}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Hide poll"
+          className="-mt-1 -mr-1 flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        >
           <X className="size-4" />
         </button>
       </div>
@@ -70,15 +78,15 @@ function PollBody({ poll, isHost, actions, onDismiss }: { poll: Poll; isHost: bo
               disabled={isHost}
               onClick={() => void vote(o.id)}
               className={cn(
-                "relative overflow-hidden rounded-xl border px-3 py-2 text-left text-sm transition-colors disabled:cursor-default",
-                !showResults && "hover:border-primary/60 hover:bg-primary/5",
-                mine && "border-primary/60",
+                "relative min-h-11 cursor-pointer overflow-hidden rounded-md border bg-surface-2 px-3 py-2 text-left text-sm transition-colors duration-[180ms] focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default",
+                !showResults && "hover:border-teal/60 hover:bg-teal-subtle/50",
+                mine && "border-teal/60",
               )}
             >
               {showResults && (
                 <motion.span
                   aria-hidden
-                  className="absolute inset-y-0 left-0 bg-primary/15"
+                  className="absolute inset-y-0 left-0 bg-teal/20"
                   initial={false}
                   animate={{ width: `${pct}%` }}
                   transition={{ type: "spring", bounce: 0, duration: 0.6 }}
@@ -86,7 +94,7 @@ function PollBody({ poll, isHost, actions, onDismiss }: { poll: Poll; isHost: bo
               )}
               <span className="relative flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
-                  {mine && <Check className="size-3.5 text-primary" />}
+                  {mine && <Check className="size-3.5 text-teal" />}
                   {o.text}
                 </span>
                 {showResults && <span className="text-xs text-muted-foreground tabular-nums">{pct}%</span>}

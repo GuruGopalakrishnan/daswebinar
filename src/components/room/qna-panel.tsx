@@ -6,9 +6,11 @@ import { CheckCircle2, ChevronUp, Lock, MessageCircleQuestion, Presentation } fr
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Segmented } from "@/components/blocks/choices";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 import type { Author, Question, Settings } from "@/lib/realtime/protocol";
+import { HostTag, PanelEmpty } from "./room-chrome";
 import type { RoomActions } from "./use-room";
 
 export function QnaPanel({
@@ -64,29 +66,29 @@ export function QnaPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-1 border-b px-3 py-2">
-        {(["top", "new", "answered"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setSort(s)}
-            aria-pressed={sort === s}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs transition-colors",
-              sort === s ? "bg-accent font-medium" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {s === "top" ? "Top" : s === "new" ? "Newest" : "Answered"}
-          </button>
-        ))}
+      <div className="flex items-center gap-2 border-b px-3 py-2.5">
+        <Segmented
+          label="Sort questions"
+          value={sort}
+          onValueChange={setSort}
+          options={[
+            { value: "top", label: "Top" },
+            { value: "new", label: "Newest" },
+            { value: "answered", label: "Answered" },
+          ]}
+        />
         <span className="ml-auto text-xs text-muted-foreground tabular-nums">{questions.filter((q) => !q.answeredAt).length} open</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-thin">
         {sorted.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
-            <MessageCircleQuestion className="size-6" />
-            <p>{sort === "answered" ? "Nothing answered yet." : isHost ? "Questions from your audience appear here." : "No questions yet. Ask the first one!"}</p>
-          </div>
+          <PanelEmpty icon={MessageCircleQuestion} title={sort === "answered" ? "Nothing answered yet" : "No questions yet"}>
+            {sort === "answered"
+              ? "Questions you mark answered move here."
+              : isHost
+                ? "Questions from your audience appear here, most upvoted first."
+                : "Ask the first one. Others can upvote it."}
+          </PanelEmpty>
         ) : (
           <motion.ul layout className="grid gap-2">
             <AnimatePresence initial={false}>
@@ -99,8 +101,8 @@ export function QnaPanel({
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className={cn(
-                      "flex gap-3 rounded-xl border bg-background p-3",
-                      spotlightId === q.id && "border-primary/60 ring-1 ring-primary/30",
+                      "flex gap-3 rounded-xl border bg-surface-2 p-3",
+                      spotlightId === q.id && "border-teal/60 ring-1 ring-teal/30",
                       q.answeredAt && "opacity-70",
                     )}
                   >
@@ -111,27 +113,28 @@ export function QnaPanel({
                       aria-label={`Upvote (${q.upvotes})`}
                       title={mine ? "You can't upvote your own question" : undefined}
                       className={cn(
-                        "flex h-12 w-10 shrink-0 flex-col items-center justify-center rounded-lg border text-xs font-medium tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                        q.upvotedByMe ? "border-primary/50 bg-primary/10 text-primary" : "hover:border-foreground/20",
+                        "flex h-12 w-11 shrink-0 cursor-pointer flex-col items-center justify-center rounded-md border text-xs font-semibold tabular-nums transition-colors duration-[180ms] focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60",
+                        q.upvotedByMe ? "border-teal/50 bg-teal-subtle text-teal" : "bg-card hover:border-foreground/25",
                       )}
                     >
                       <ChevronUp className="size-4" />
                       {q.upvotes}
                     </button>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm break-words">{q.text}</p>
+                      <p className="text-sm leading-5 break-words">{q.text}</p>
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <UserAvatar name={q.author.name} id={q.author.userId} className="size-4 text-[7px]" />
                         {mine ? "You" : q.author.name}
+                        {q.author.role === "host" && <HostTag />}
                         {q.answeredAt && (
                           <span className="inline-flex items-center gap-0.5 text-success">
                             · <CheckCircle2 className="size-3" /> Answered
                           </span>
                         )}
-                        {spotlightId === q.id && <span className="text-primary">· On stage</span>}
+                        {spotlightId === q.id && <span className="font-medium text-teal">· On stage</span>}
                       </p>
                       {isHost && (
-                        <div className="mt-2 flex gap-1">
+                        <div className="mt-2.5 flex flex-wrap gap-1">
                           {!q.answeredAt && (
                             <Button variant="outline" size="xs" onClick={() => void spotlight(spotlightId === q.id ? null : q.id)}>
                               <Presentation /> {spotlightId === q.id ? "Hide from stage" : "Show on stage"}
@@ -151,7 +154,7 @@ export function QnaPanel({
         )}
       </div>
 
-      <div className="border-t p-3">
+      <div className="border-t bg-card p-3">
         {disabled ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Lock className="size-4" /> Q&amp;A is closed.
@@ -175,7 +178,7 @@ export function QnaPanel({
             />
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-muted-foreground tabular-nums">{300 - text.length}</span>
-              <Button size="sm" onClick={() => void ask()} disabled={!text.trim() || sending}>
+              <Button size="sm" variant="teal" onClick={() => void ask()} disabled={!text.trim()} loading={sending}>
                 Ask question
               </Button>
             </div>

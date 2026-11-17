@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/user-avatar";
 import type { Author, HandRaise } from "@/lib/realtime/protocol";
+import { HostTag } from "./room-chrome";
 import type { RoomActions } from "./use-room";
 
 export function PeoplePanel({
@@ -45,10 +46,10 @@ export function PeoplePanel({
             className="mb-4 overflow-hidden"
             aria-labelledby="hands-heading"
           >
-            <h3 id="hands-heading" className="mb-2 flex items-center gap-1.5 px-1 text-xs font-medium text-warning">
-              <Hand className="size-3.5" /> Raised hands · {handRaises.length}
+            <h3 id="hands-heading" className="eyebrow mb-2 flex items-center gap-1.5 px-1">
+              <Hand className="size-3.5 text-highlight" /> Raised hands · {handRaises.length}
             </h3>
-            <ul className="grid gap-1 rounded-xl border border-warning/30 bg-warning/5 p-1.5">
+            <ul className="grid gap-1 rounded-xl border border-warning/30 bg-warning-subtle p-1.5">
               {handRaises.map((h, i) => (
                 <motion.li layout key={h.userId} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
                   <span className="w-4 text-center text-xs text-muted-foreground tabular-nums">{i + 1}</span>
@@ -66,10 +67,10 @@ export function PeoplePanel({
         )}
       </AnimatePresence>
 
-      <h3 className="mb-2 px-1 text-xs font-medium text-muted-foreground">In the room · {members.length}</h3>
+      <h3 className="eyebrow mb-2 px-1">In the room · {members.length}</h3>
       <ul className="grid gap-0.5">
         {members.map((m) => (
-          <li key={m.userId} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-accent/40">
+          <li key={m.userId} className="flex min-h-11 items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-[120ms] hover:bg-accent/50">
             <span className="relative">
               <UserAvatar name={m.name} id={m.userId} className="size-7 text-[10px]" />
               <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-card bg-success" aria-hidden />
@@ -78,10 +79,8 @@ export function PeoplePanel({
               {m.name}
               {m.userId === me?.userId && <span className="text-muted-foreground"> (you)</span>}
             </span>
-            {m.role === "host" && (
-              <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary uppercase">Host</span>
-            )}
-            {handRaises.some((h) => h.userId === m.userId) && <Hand className="size-3.5 text-warning" aria-label="Hand raised" />}
+            {m.role === "host" && <HostTag />}
+            {handRaises.some((h) => h.userId === m.userId) && <Hand className="size-3.5 text-highlight" aria-label="Hand raised" />}
             {isHost && m.role !== "host" && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

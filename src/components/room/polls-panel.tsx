@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Author, Poll } from "@/lib/realtime/protocol";
+import { PanelEmpty } from "./room-chrome";
 import type { RoomActions } from "./use-room";
 
 export function PollsPanel({ polls, me, actions }: { polls: Poll[]; me: Author | null; actions: RoomActions }) {
@@ -26,7 +27,7 @@ export function PollsPanel({ polls, me, actions }: { polls: Poll[]; me: Author |
               </motion.div>
             ) : (
               <motion.div key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <Button variant="outline" className="mb-3 w-full border-dashed" onClick={() => setCreating(true)}>
+                <Button variant="outline" className="mb-3 w-full border-dashed bg-transparent" onClick={() => setCreating(true)}>
                   <Plus /> Create poll
                 </Button>
               </motion.div>
@@ -35,9 +36,10 @@ export function PollsPanel({ polls, me, actions }: { polls: Poll[]; me: Author |
         )}
 
         {ordered.length === 0 && !creating ? (
-          <div className="flex h-[70%] flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
-            <BarChart3 className="size-6" />
-            <p>{isHost ? "Launch a poll to hear from your audience." : "No polls yet. The host will launch them here."}</p>
+          <div className="h-[70%]">
+            <PanelEmpty icon={BarChart3} title="No polls yet">
+              {isHost ? "Launch a poll to hear from your audience. It pops up on their screen." : "When the host launches a poll, it shows up here and on the stage."}
+            </PanelEmpty>
           </div>
         ) : (
           <ul className="grid gap-3">
@@ -70,7 +72,8 @@ function PollComposer({ onDone, actions }: { onDone: () => void; actions: RoomAc
   }
 
   return (
-    <div className="mb-3 grid gap-2 rounded-xl border bg-background p-3">
+    <div className="mb-3 grid gap-2 rounded-xl border bg-surface-2 p-3">
+      <p className="eyebrow">New poll</p>
       <Input value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} placeholder="Ask a question…" aria-label="Poll question" autoFocus />
       {options.map((o, i) => (
         <div key={i} className="flex gap-1.5">
@@ -102,7 +105,7 @@ function PollComposer({ onDone, actions }: { onDone: () => void; actions: RoomAc
         <Button variant="ghost" size="sm" onClick={onDone}>
           Cancel
         </Button>
-        <Button size="sm" disabled={!valid || sending} onClick={() => void launch()}>
+        <Button size="sm" disabled={!valid} loading={sending} onClick={() => void launch()}>
           Launch poll
         </Button>
       </div>
@@ -125,16 +128,16 @@ function PollCard({ poll, isHost, actions }: { poll: Poll; isHost: boolean; acti
   }
 
   return (
-    <li className={cn("rounded-xl border bg-background p-3", !poll.closed && "border-primary/30")}>
+    <li className={cn("rounded-xl border bg-surface-2 p-3", !poll.closed && "border-teal/40")}>
       <div className="mb-2.5 flex items-start justify-between gap-2">
-        <p className="text-sm font-medium">{poll.question}</p>
+        <p className="text-sm font-semibold">{poll.question}</p>
         {poll.closed ? (
           <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
             <Lock className="size-3" /> Closed
           </span>
         ) : (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-primary">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> Open
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-teal">
+            <span className="size-1.5 animate-pulse rounded-full bg-teal" /> Open
           </span>
         )}
       </div>
@@ -147,7 +150,7 @@ function PollCard({ poll, isHost, actions }: { poll: Poll; isHost: boolean; acti
               <button
                 key={o.id}
                 onClick={() => void vote(o.id)}
-                className="rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/5"
+                className="min-h-11 cursor-pointer rounded-md border bg-card px-3 py-2 text-left text-sm transition-colors duration-[180ms] hover:border-teal/60 hover:bg-teal-subtle/50 focus-visible:outline-2 focus-visible:outline-ring"
               >
                 {o.text}
               </button>
@@ -160,20 +163,20 @@ function PollCard({ poll, isHost, actions }: { poll: Poll; isHost: boolean; acti
               disabled={poll.closed || isHost}
               aria-label={`${o.text}: ${pct}%`}
               className={cn(
-                "relative overflow-hidden rounded-lg border px-3 py-2 text-left text-sm disabled:cursor-default",
-                mine && "border-primary/50",
+                "relative min-h-11 cursor-pointer overflow-hidden rounded-md border bg-card px-3 py-2 text-left text-sm disabled:cursor-default",
+                mine && "border-teal/60",
               )}
             >
               <motion.span
                 aria-hidden
-                className={cn("absolute inset-y-0 left-0", o.votes === leader && total > 0 ? "bg-primary/25" : "bg-muted")}
+                className={cn("absolute inset-y-0 left-0", o.votes === leader && total > 0 ? "bg-teal/25" : "bg-muted")}
                 initial={false}
                 animate={{ width: `${pct}%` }}
                 transition={{ type: "spring", bounce: 0, duration: 0.6 }}
               />
               <span className="relative flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
-                  {mine && <Check className="size-3.5 text-primary" />}
+                  {mine && <Check className="size-3.5 text-teal" />}
                   {o.text}
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">{pct}%</span>

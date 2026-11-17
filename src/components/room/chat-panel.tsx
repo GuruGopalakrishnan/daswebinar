@@ -3,12 +3,13 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useNow } from "@/hooks/use-client-values";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertCircle, ArrowDown, Lock, RotateCw, SendHorizontal, Timer } from "lucide-react";
+import { AlertCircle, ArrowDown, Lock, MessageSquare, RotateCw, SendHorizontal, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 import type { Author, Settings } from "@/lib/realtime/protocol";
+import { HostTag, PanelEmpty } from "./room-chrome";
 import type { LocalMessage, RoomActions } from "./use-room";
 
 const MAX = 500;
@@ -73,10 +74,9 @@ export function ChatPanel({
           aria-label="Chat messages"
         >
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Say hello 👋</p>
-              <p>Messages from everyone in the room appear here.</p>
-            </div>
+            <PanelEmpty icon={MessageSquare} title="Say hello">
+              Messages from everyone in the room appear here.
+            </PanelEmpty>
           ) : (
             <ol className="grid gap-0.5">
               {messages.map((m, i) => {
@@ -92,7 +92,7 @@ export function ChatPanel({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: m.pending ? 0.6 : 1, y: 0 }}
                     transition={{ duration: 0.15 }}
-                    className={cn("group flex gap-2.5 rounded-md px-1.5 py-0.5 hover:bg-accent/40", !grouped && "mt-2.5")}
+                    className={cn("group flex gap-2.5 rounded-md px-1.5 py-0.5 transition-colors duration-[120ms] hover:bg-accent/50", !grouped && "mt-3 first:mt-0")}
                   >
                     <div className="w-7 shrink-0">
                       {!grouped && <UserAvatar name={m.author.name} id={m.author.userId} className="size-7 text-[10px]" />}
@@ -100,22 +100,20 @@ export function ChatPanel({
                     <div className="min-w-0 flex-1">
                       {!grouped && (
                         <div className="flex items-baseline gap-1.5">
-                          <span className={cn("truncate text-[13px] font-medium", mine && "text-primary")}>
+                          <span className={cn("truncate text-[13px] font-semibold", mine && "text-teal")}>
                             {mine ? "You" : m.author.name}
                           </span>
-                          {m.author.role === "host" && (
-                            <span className="rounded bg-primary/15 px-1 text-[10px] font-medium text-primary uppercase">Host</span>
-                          )}
+                          {m.author.role === "host" && <HostTag />}
                           <time dateTime={m.sentAt} className="text-[11px] text-muted-foreground">
                             {timeLabel(m.sentAt)}
                           </time>
                         </div>
                       )}
-                      <p className="text-sm break-words whitespace-pre-wrap">{m.text}</p>
+                      <p className="text-sm leading-5 break-words whitespace-pre-wrap">{m.text}</p>
                       {m.failed && (
                         <button
                           onClick={() => actions.sendMessage(m.text, m.clientMessageId)}
-                          className="mt-0.5 inline-flex items-center gap-1 text-xs text-destructive hover:underline"
+                          className="mt-0.5 inline-flex cursor-pointer items-center gap-1 text-xs text-destructive hover:underline"
                         >
                           <AlertCircle className="size-3" /> Not sent · <RotateCw className="size-3" /> Retry
                         </button>
@@ -134,7 +132,7 @@ export function ChatPanel({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
               onClick={jumpToBottom}
-              className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-lg"
+              className="absolute bottom-3 left-1/2 inline-flex h-7 -translate-x-1/2 cursor-pointer items-center gap-1 rounded-full bg-teal px-3 text-xs font-semibold text-teal-foreground shadow-elevated"
             >
               <ArrowDown className="size-3" /> {unseen} new
             </motion.button>
@@ -188,7 +186,7 @@ function Composer({
 
   if (disabled) {
     return (
-      <div className="flex items-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 border-t bg-surface-2 px-4 py-3.5 text-sm text-muted-foreground">
         <Lock className="size-4" /> The host has turned off chat.
       </div>
     );
@@ -196,7 +194,7 @@ function Composer({
 
   return (
     <div className="border-t p-3">
-      <div className="flex items-end gap-2 rounded-xl border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
+      <div className="flex items-end gap-2 rounded-md border border-input bg-surface-2 py-1.5 pr-1.5 pl-3 transition-[border-color,box-shadow] duration-[220ms] ease-out focus-within:border-ring focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--ring)_22%,transparent)]">
         <label htmlFor="chat-input" className="sr-only">
           Message
         </label>
@@ -214,10 +212,11 @@ function Composer({
             }
           }}
           placeholder={remaining ? `Slow mode — wait ${remaining}s` : "Send a message…"}
-          className="max-h-[120px] min-h-6 flex-1 resize-none bg-transparent py-0.5 text-sm outline-none placeholder:text-muted-foreground"
+          className="max-h-[120px] min-h-6 flex-1 resize-none self-center bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
         />
         <Button
           size="icon-sm"
+          variant="teal"
           onClick={() => void send()}
           disabled={!text.trim() || remaining > 0}
           aria-label="Send message"
