@@ -78,7 +78,7 @@ function CountBadge({
 }
 
 const btn =
-  "relative flex size-11 items-center justify-center rounded-full text-white/90 transition-all outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-primary active:scale-95 disabled:opacity-40 [&_svg]:size-5";
+  "relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-white/85 transition-[background-color,color,transform] duration-[180ms] ease-out outline-none hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.94] disabled:opacity-40 [&_svg]:size-5";
 
 function DockButton({
   label,
@@ -107,7 +107,7 @@ function DockButton({
           onClick={onClick}
           aria-label={label}
           aria-pressed={active}
-          className={cn(btn, active && "bg-white/15", danger && "bg-destructive text-white hover:bg-destructive/90", className)}
+          className={cn(btn, active && "bg-white/15 text-white", danger && "bg-destructive text-white hover:bg-destructive/90 hover:text-white", className)}
         >
           {children}
           <CountBadge badge={badge} dotClassName="top-2 right-2" />
@@ -115,14 +115,14 @@ function DockButton({
       </TooltipTrigger>
       <TooltipContent side="top">
         {label}
-        {shortcut && <kbd className="ml-2 rounded bg-white/15 px-1 font-mono text-[10px]">{shortcut}</kbd>}
+        {shortcut && <kbd className="ml-2 rounded-sm bg-white/15 px-1 font-mono text-[10px]">{shortcut}</kbd>}
       </TooltipContent>
     </Tooltip>
   );
 }
 
 function Divider() {
-  return <span aria-hidden className="mx-0.5 hidden h-6 w-px bg-white/15 sm:block" />;
+  return <span aria-hidden className="mx-1 hidden h-6 w-px shrink-0 bg-white/12 sm:block" />;
 }
 
 type Props = {
@@ -156,7 +156,7 @@ export function Dock(p: Props) {
   const live = p.status === "live";
 
   return (
-    <div className="glass flex max-w-[calc(100vw-1.5rem)] items-center gap-0.5 overflow-x-auto rounded-full p-1.5 shadow-2xl sm:gap-1 sm:overflow-visible">
+    <div className="glass flex max-w-[calc(100vw-1.5rem)] items-center gap-0.5 overflow-x-auto rounded-2xl p-1.5 shadow-elevated scrollbar-none sm:gap-1 sm:overflow-visible">
       {p.isHost && (
         <>
           <div className="flex items-center">
@@ -170,7 +170,7 @@ export function Dock(p: Props) {
               {media.micOn && (
                 <span
                   aria-hidden
-                  className="absolute inset-1 rounded-full ring-2 ring-primary transition-opacity duration-100"
+                  className="absolute inset-1 rounded-lg ring-2 ring-teal transition-opacity duration-100"
                   style={{ opacity: Math.min(1, p.micLevel * 1.6) }}
                 />
               )}
@@ -193,7 +193,8 @@ export function Dock(p: Props) {
               label={media.screen ? "Stop presenting" : "Present screen"}
               shortcut="S"
               onClick={() => void media.toggleScreen()}
-              className={cn("hidden sm:flex", media.screen && "bg-primary text-primary-foreground hover:bg-primary/90")}
+              active={Boolean(media.screen)}
+              className={cn("hidden sm:flex", media.screen && "bg-teal text-teal-foreground hover:bg-teal/90 hover:text-teal-foreground")}
             >
               <MonitorUp />
             </DockButton>
@@ -226,7 +227,7 @@ export function Dock(p: Props) {
           <Tooltip>
             <TooltipTrigger asChild>
               <PopoverTrigger asChild>
-                <button type="button" aria-label="React" className={cn(btn, reactOpen && "bg-white/15")}>
+                <button type="button" aria-label="React" className={cn(btn, reactOpen && "bg-white/15 text-white")}>
                   <SmilePlus />
                 </button>
               </PopoverTrigger>
@@ -235,7 +236,7 @@ export function Dock(p: Props) {
               React <kbd className="ml-2 rounded bg-white/15 px-1 font-mono text-[10px]">1–8</kbd>
             </TooltipContent>
           </Tooltip>
-          <PopoverContent side="top" className="w-auto rounded-full p-1.5">
+          <PopoverContent side="top" className="w-auto rounded-xl p-1.5">
             <div className="flex gap-0.5">
               {REACTIONS.map((emoji, i) => (
                 <button
@@ -243,7 +244,7 @@ export function Dock(p: Props) {
                   type="button"
                   onClick={() => p.onReact(emoji)}
                   aria-label={`React ${emoji} (${i + 1})`}
-                  className="flex size-10 items-center justify-center rounded-full text-xl transition-transform hover:-translate-y-0.5 hover:scale-125 hover:bg-accent active:scale-90"
+                  className="flex size-11 cursor-pointer items-center justify-center rounded-lg text-xl transition-transform duration-[180ms] ease-out hover:-translate-y-0.5 hover:scale-125 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring active:scale-90"
                 >
                   {emoji}
                 </button>
@@ -258,7 +259,7 @@ export function Dock(p: Props) {
           label={p.handRaised ? "Lower hand" : "Raise hand"}
           shortcut="H"
           onClick={p.onToggleHand}
-          className={cn(p.handRaised && "bg-highlight text-black hover:bg-highlight/90")}
+          className={cn(p.handRaised && "bg-highlight text-black hover:bg-highlight/90 hover:text-black")}
         >
           <Hand />
         </DockButton>
@@ -315,17 +316,17 @@ export function Dock(p: Props) {
       <Divider />
 
       {p.isHost && !live && p.status !== "ended" && (
-        <Button onClick={p.onGoLive} disabled={p.goingLive} className="h-11 shrink-0 rounded-full bg-live px-5 text-white hover:bg-live/90">
+        <Button onClick={p.onGoLive} loading={p.goingLive} className="h-11 shrink-0 rounded-xl bg-live px-5 font-semibold text-white hover:bg-live/90">
           <Radio /> Go live
         </Button>
       )}
       {p.isHost && live && (
-        <Button onClick={p.onEnd} className="h-11 shrink-0 rounded-full bg-destructive px-5 text-white hover:bg-destructive/90">
+        <Button onClick={p.onEnd} className="h-11 shrink-0 rounded-xl bg-destructive px-5 font-semibold text-white hover:bg-destructive/90">
           <PhoneOff /> End
         </Button>
       )}
       {!p.isHost && (
-        <Button onClick={p.onLeave} variant="ghost" className="h-11 shrink-0 rounded-full px-4 text-white hover:bg-white/10 hover:text-white">
+        <Button onClick={p.onLeave} variant="ghost" className="h-11 shrink-0 rounded-xl px-4 text-white/85 hover:bg-white/10 hover:text-white">
           <LogOut /> Leave
         </Button>
       )}
@@ -357,7 +358,7 @@ export function MobilePanelNav({
             onClick={() => onPanel(id)}
             aria-pressed={active}
             className={cn(
-              "relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium text-white/55 transition-colors outline-none focus-visible:bg-white/5 active:bg-white/5",
+              "relative flex h-16 cursor-pointer flex-col items-center justify-center gap-1 text-[11px] font-medium text-white/55 transition-colors duration-[180ms] outline-none focus-visible:bg-white/5 active:bg-white/5",
               active && "text-white",
             )}
           >
@@ -365,7 +366,7 @@ export function MobilePanelNav({
               <motion.span
                 layoutId="mobile-panel-indicator"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
-                className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
+                className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-teal"
               />
             )}
             <span className="relative">
@@ -389,7 +390,7 @@ function DeviceMenu({ kind, media }: { kind: "mic" | "camera"; media: LocalMedia
         <button
           type="button"
           aria-label={kind === "mic" ? "Audio settings" : "Video settings"}
-          className="-ml-1 hidden h-11 w-5 items-center justify-center rounded-full text-white/60 hover:text-white sm:flex"
+          className="-ml-0.5 hidden h-11 w-5 cursor-pointer items-center justify-center rounded-md text-white/55 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-ring sm:flex"
         >
           <ChevronUp className="size-3.5" />
         </button>
