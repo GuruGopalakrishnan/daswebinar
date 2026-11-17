@@ -93,7 +93,7 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
     <div className="relative isolate flex size-full items-center justify-center overflow-hidden bg-stage">
       <div
         aria-hidden
-        className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_0%,oklch(0.42_0.06_180/0.35),transparent_55%),radial-gradient(ellipse_at_100%_100%,oklch(0.5_0.08_78/0.18),transparent_50%)]"
+        className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_70%_55%_at_50%_0%,color-mix(in_oklch,var(--teal)_16%,transparent),transparent_70%),radial-gradient(ellipse_60%_50%_at_50%_110%,oklch(0.3_0.04_250/0.5),transparent_70%)]"
       />
 
       {main ? (
@@ -114,13 +114,13 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
           dragMomentum={false}
           dragConstraints={{ left: -2000, right: 0, top: -2000, bottom: 0 }}
           className={cn(
-            "absolute right-4 bottom-24 aspect-video w-36 cursor-grab overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/15 active:cursor-grabbing sm:w-60",
-            speaking && "ring-2 ring-primary",
+            "absolute right-4 bottom-24 aspect-video w-36 cursor-grab overflow-hidden rounded-xl bg-stage shadow-elevated ring-1 ring-white/10 transition-shadow duration-200 active:cursor-grabbing sm:w-60",
+            speaking && "ring-2 ring-teal",
           )}
           title="Drag to move"
         >
           <SurfaceView surface={pip} fit="cover" />
-          <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white">
+          <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
             {hostMuted && <MicOff className="size-3" />} {hostName}
           </span>
         </motion.div>
@@ -128,7 +128,7 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
 
       {/* Name tag on a full-frame camera */}
       {main && !presenting && (
-        <span className="absolute bottom-24 left-4 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 text-xs text-white backdrop-blur">
+        <span className="absolute bottom-24 left-4 inline-flex items-center gap-1.5 rounded-md bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
           {hostMuted ? <MicOff className="size-3.5" /> : <SpeakingBars active={speaking} />}
           {hostName}
           {isHost && " (you)"}
@@ -139,7 +139,7 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
         <button
           type="button"
           onClick={broadcast.unblockAudio}
-          className="absolute top-1/2 left-1/2 z-20 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-medium text-black shadow-2xl"
+          className="absolute top-1/2 left-1/2 z-20 inline-flex h-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-teal-foreground shadow-elevated transition-transform duration-[120ms] active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <Volume2 className="size-4" /> Tap to turn on sound
         </button>
@@ -150,9 +150,9 @@ export function Stage({ isHost, status, hostName, startsAt, camera, screen, micO
           key={spotlight.id}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass absolute bottom-24 left-1/2 z-10 w-[min(92%,640px)] -translate-x-1/2 rounded-2xl p-4 text-white shadow-2xl"
+          className="glass absolute bottom-24 left-1/2 z-10 w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border-l-2 border-l-teal p-4 text-white shadow-elevated"
         >
-          <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-wider text-highlight uppercase">
+          <p className="flex items-center gap-1.5 text-[11px] leading-4 font-semibold tracking-[0.06em] text-teal uppercase">
             <MessageCircleQuestion className="size-3.5" /> Question from {spotlight.author.name}
           </p>
           <p className="mt-1.5 text-base text-pretty sm:text-lg">{spotlight.text}</p>
@@ -191,7 +191,7 @@ function SpeakingBars({ active }: { active: boolean }) {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className={cn("w-[3px] rounded-full bg-primary transition-all duration-150", active ? "animate-pulse" : "")}
+          className={cn("w-[3px] rounded-full bg-teal transition-all duration-150", active ? "animate-pulse" : "")}
           style={{ height: active ? `${[60, 100, 70][i]}%` : "30%", animationDelay: `${i * 120}ms` }}
         />
       ))}
@@ -205,24 +205,27 @@ function SpeakerTile({ name, level, caption }: { name: string; level: number; ca
       <div className="relative">
         <motion.span
           aria-hidden
-          className="absolute -inset-2 rounded-full bg-primary/40"
+          className="absolute -inset-2 rounded-full bg-teal/40"
           animate={{ scale: 1 + level * 0.35, opacity: 0.15 + level * 0.6 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
         />
-        <UserAvatar name={name} className="relative size-24 text-2xl sm:size-28" />
+        <UserAvatar name={name} className="relative size-24 text-2xl ring-4 ring-stage sm:size-28" />
       </div>
-      {caption && <p className="text-sm text-white/60">{caption}</p>}
+      {caption && <p className="text-sm text-pretty text-white/65">{caption}</p>}
     </div>
   );
 }
 
 function WaitingRoom({ hostName, startsAt }: { hostName: string; startsAt: string }) {
   return (
-    <div className="flex flex-col items-center gap-6 px-6 text-center text-white">
-      <UserAvatar name={hostName} className="size-20 text-xl" />
-      <div>
-        <p className="font-display text-3xl">Starting soon</p>
-        <p className="mt-1.5 text-sm text-white/60">You&apos;re in. {hostName} will start the session shortly — stay on this page.</p>
+    <div className="flex max-w-md flex-col items-center gap-6 px-6 text-center text-white">
+      <UserAvatar name={hostName} className="size-20 text-xl ring-4 ring-white/10" />
+      <div className="grid gap-1.5">
+        <p className="inline-flex items-center justify-center gap-1.5 text-[11px] leading-4 font-semibold tracking-[0.06em] text-teal uppercase">
+          <span className="size-1.5 animate-pulse rounded-full bg-teal" aria-hidden /> Waiting room
+        </p>
+        <p className="t-h2">Starting soon</p>
+        <p className="text-sm text-pretty text-white/65">You&apos;re in. {hostName} will start the session shortly. Stay on this page.</p>
       </div>
       <div className="[&_div]:border-white/10 [&_div]:bg-white/5 [&_div]:text-white">
         <Countdown to={startsAt} />
