@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, Users, WifiOff, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -16,10 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { UpgradeDialog, type UpgradeReason } from "@/components/billing/upgrade-dialog";
-import { useNow } from "@/hooks/use-client-values";
-import { formatClock } from "@/lib/format";
 import { REACTIONS } from "@/lib/realtime/protocol";
 import { cn } from "@/lib/utils";
 import type { WebinarStatus } from "@/lib/webinars/types";
@@ -31,6 +25,7 @@ import { PollsPanel } from "./polls-panel";
 import { PreJoin } from "./prejoin";
 import { QnaPanel } from "./qna-panel";
 import { SettingsDialog } from "./settings-dialog";
+import { RoomDrawer, RoomOverlay, RoomTopBar } from "./room-chrome";
 import { ShortcutsDialog, useShortcuts } from "./shortcuts";
 import { Stage } from "./stage";
 import { useBroadcast } from "./use-broadcast";
@@ -57,8 +52,6 @@ export function Room({ webinar, isHost }: { webinar: RoomWebinar; isHost: boolea
   }
   return <Studio webinar={webinar} isHost={isHost} media={media} />;
 }
-
-const PANEL_TITLES: Record<Panel, string> = { chat: "Chat", qna: "Questions", polls: "Polls", people: "People" };
 
 function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: boolean; media: LocalMedia }) {
   const router = useRouter();
@@ -295,37 +288,19 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
             <PollOverlay polls={state.polls} isHost={isHost} actions={actions} />
           </Stage>
 
-          {/* Top bar */}
-          <header
-            className={cn(
-              "absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/60 to-transparent p-3 text-white transition-opacity duration-300 sm:p-4",
-              chromeHidden && "pointer-events-none opacity-0",
-            )}
-          >
-            <Button asChild variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Back">
-              <Link href={isHost ? `/dashboard/webinars/${webinar.id}` : `/register/${webinar.id}`} onClick={() => media.release()}>
-                <ChevronLeft />
-              </Link>
-            </Button>
-            <h1 className="min-w-0 truncate text-sm font-medium sm:text-base">{webinar.title}</h1>
-            <StatusPill status={effectiveStatus} startedAt={startedAt} isHost={isHost} />
-            {state.settings?.recording && (
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" title="This session is being recorded">
-                <span className="size-2 animate-pulse rounded-full bg-live" /> REC
-              </span>
-            )}
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              {(state.connection === "reconnecting" || state.connection === "error" || broadcast.state === "reconnecting") && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2.5 py-1 text-xs text-warning" role="status">
-                  <WifiOff className="size-3.5" /> Reconnecting…
-                </span>
-              )}
-              {live && <NetworkBars quality={broadcast.network} />}
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs backdrop-blur" aria-label={`${state.liveCount} in the room`}>
-                <Users className="size-3.5" /> <span className="tabular-nums">{state.liveCount.toLocaleString()}</span>
-              </span>
-            </div>
-          </header>
+          <RoomTopBar
+            title={webinar.title}
+            backHref={isHost ? `/dashboard/webinars/${webinar.id}` : `/register/${webinar.id}`}
+            onBack={() => media.release()}
+            status={effectiveStatus}
+            startedAt={startedAt}
+            isHost={isHost}
+            recording={Boolean(state.settings?.recording)}
+            reconnecting={state.connection === "reconnecting" || state.connection === "error" || broadcast.state === "reconnecting"}
+            network={broadcast.network}
+            liveCount={state.liveCount}
+            hidden={chromeHidden}
+          />
 
           {/* Dock */}
           <div
@@ -364,34 +339,16 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
       </div>
 
       {/* Side drawer (bottom sheet on small screens) */}
-      <AnimatePresence initial={false}>
-        {panel && (
-          <motion.aside
-            key="drawer"
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 24 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex h-[65dvh] flex-col rounded-t-3xl border-t bg-card shadow-2xl sm:bottom-0 sm:h-[70dvh] lg:static lg:z-auto lg:h-auto lg:w-[380px] lg:rounded-none lg:border-t-0 lg:border-l lg:shadow-none"
-            aria-label={PANEL_TITLES[panel]}
-          >
-            <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-              <h2 className="font-medium">{PANEL_TITLES[panel]}</h2>
-              <Button variant="ghost" size="icon-sm" onClick={() => openPanel(null)} aria-label="Close panel">
-                <X />
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1">
-              {panel === "chat" && <ChatPanel messages={state.messages} me={state.me} settings={state.settings} actions={actions} />}
-              {panel === "qna" && (
-                <QnaPanel questions={state.questions} me={state.me} settings={state.settings} actions={actions} />
-              )}
-              {panel === "polls" && <PollsPanel polls={state.polls} me={state.me} actions={actions} />}
-              {panel === "people" && <PeoplePanel members={state.members} handRaises={state.handRaises} me={state.me} actions={actions} />}
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+      <RoomDrawer
+        panel={panel}
+        count={panel === "people" ? state.members.length : panel === "qna" ? state.questions.filter((q) => !q.answeredAt).length : undefined}
+        onClose={() => openPanel(null)}
+      >
+        {panel === "chat" && <ChatPanel messages={state.messages} me={state.me} settings={state.settings} actions={actions} />}
+        {panel === "qna" && <QnaPanel questions={state.questions} me={state.me} settings={state.settings} actions={actions} />}
+        {panel === "polls" && <PollsPanel polls={state.polls} me={state.me} actions={actions} />}
+        {panel === "people" && <PeoplePanel members={state.members} handRaises={state.handRaises} me={state.me} actions={actions} />}
+      </RoomDrawer>
 
       {isHost && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={state.settings} actions={actions} />}
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} isHost={isHost} />
@@ -422,89 +379,13 @@ function Studio({ webinar, isHost, media }: { webinar: RoomWebinar; isHost: bool
         </AlertDialogContent>
       </AlertDialog>
 
-      <AnimatePresence>
-        {(effectiveStatus === "ended" || blocked) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stage/90 p-6 backdrop-blur-md"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="overlay-title"
-          >
-            <motion.div initial={{ y: 12, scale: 0.98 }} animate={{ y: 0, scale: 1 }} className="w-full max-w-sm rounded-3xl border bg-card p-8 text-center shadow-2xl">
-              {effectiveStatus === "ended" ? (
-                <>
-                  <p className="text-3xl" aria-hidden>👋</p>
-                  <h2 id="overlay-title" className="mt-3 font-display text-3xl">That&apos;s a wrap</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {isHost ? "Great session. Your attendees have been told it's over." : "Thanks for joining!"}
-                  </p>
-                  <Button asChild className="mt-6 w-full rounded-full">
-                    <Link href={isHost ? `/dashboard/webinars/${webinar.id}` : "/"} onClick={() => media.release()}>
-                      {isHost ? "Back to webinar" : "Done"}
-                    </Link>
-                  </Button>
-                </>
-              ) : state.connection === "unauthorized" ? (
-                <>
-                  <h2 id="overlay-title" className="text-lg font-semibold">Session expired</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Log in again to rejoin the room.</p>
-                  <Button asChild className="mt-6 w-full rounded-full">
-                    <Link href={`/login?next=${encodeURIComponent(`/room/${webinar.id}`)}`}>Log in</Link>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h2 id="overlay-title" className="text-lg font-semibold">
-                    {state.connection === "removed" ? "You were removed" : "You can't join this room"}
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{state.error ?? "You don't have access to this webinar."}</p>
-                  <Button asChild className="mt-6 w-full rounded-full">
-                    <Link href={`/register/${webinar.id}`} onClick={() => media.release()}>
-                      Back to registration
-                    </Link>
-                  </Button>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <RoomOverlay
+        kind={effectiveStatus === "ended" ? "ended" : blocked ? (state.connection as "unauthorized" | "forbidden" | "removed") : null}
+        isHost={isHost}
+        webinarId={webinar.id}
+        error={state.error}
+        onLeave={() => media.release()}
+      />
     </div>
-  );
-}
-
-function StatusPill({ status, startedAt, isHost }: { status: WebinarStatus; startedAt: string | null; isHost: boolean }) {
-  const now = useNow();
-  if (status === "live") {
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-live px-2.5 py-1 text-[11px] font-semibold text-white">
-        <span className="size-1.5 animate-pulse rounded-full bg-white" />
-        LIVE
-        {startedAt && now !== null && <span className="font-mono tabular-nums">{formatClock((now - new Date(startedAt).getTime()) / 1000)}</span>}
-      </span>
-    );
-  }
-  if (status === "ended") return null;
-  return (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-white/80">
-      {isHost ? "Preview · only you can see this" : "Waiting room"}
-    </span>
-  );
-}
-
-/** Agora quality 1 (excellent) … 6 (down); 0 means not measured yet. */
-function NetworkBars({ quality }: { quality: number }) {
-  if (!quality) return null;
-  const bars = quality <= 2 ? 3 : quality <= 4 ? 2 : 1;
-  const label = bars === 3 ? "Good connection" : bars === 2 ? "Unstable connection" : "Poor connection";
-  const color = bars === 3 ? "bg-success" : bars === 2 ? "bg-warning" : "bg-live";
-  return (
-    <span className="flex h-7 items-end gap-[3px] rounded-full bg-black/45 px-2.5 py-1.5 backdrop-blur" title={label} aria-label={label} role="img">
-      {[0, 1, 2].map((i) => (
-        <span key={i} className={cn("w-[3px] rounded-full", i < bars ? color : "bg-white/25")} style={{ height: `${40 + i * 30}%` }} />
-      ))}
-    </span>
   );
 }
