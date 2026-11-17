@@ -89,6 +89,7 @@ Import each scene from its own file (no barrel), so client components don't pull
 | `Reveal` | `src/components/motion.tsx` | Scroll-in entrance for sections |
 | `CopyButton` | `src/components/copy-button.tsx` | Copy a link with toast feedback |
 | `Dock`, `MobilePanelNav` | `src/components/room/dock.tsx` | Room controls; panels move to a labeled bottom nav under 640 px |
+| `RoomTopBar`, `RoomDrawer`, `RoomOverlay`, `PanelEmpty`, `HostTag` | `src/components/room/room-chrome.tsx` | Live-room chrome and panel helpers. In the dark room use `teal` for emphasis (`primary` is near-white there). Preview: `/dev/ui/room` |
 | `MobileRegisterBar` | `src/components/register/mobile-register-bar.tsx` | Sticky "Save my seat" until the visitor reaches or uses the form |
 
 ## States every screen needs

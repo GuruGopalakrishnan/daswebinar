@@ -363,6 +363,31 @@ Tokens, brand, primitives, app blocks and all prototype motion scenes ported; de
 4. Only then apply to production. The app already works without the migration (slug links 404, My events says "not
    available yet").
 
+### Phase 5 (2026-11-17): live room restyle (studio + attendee)
+Visual changes only. `use-room.ts`, `use-broadcast.ts`, `use-local-media.ts`, `use-recorder.ts`, the realtime
+protocol, the API routes and the lifecycle / shortcut / auto-hide logic in `room.tsx` are unchanged.
+- **Chrome** (`components/room/room-chrome.tsx`, new): top bar (title, LIVE timer, REC, reconnecting, network bars,
+  live count), side drawer / phone bottom sheet with a title count, and the ended / session-expired / removed /
+  no-access overlay. Moved out of `room.tsx` as plain-prop components so the room and its preview share markup.
+- **Stage**: navy stage with a soft teal glow (the old amber glow is gone), teal speaking ring and bars, square name
+  tags, waiting room with the type scale (no serif), teal "Tap to turn on sound" button, spotlighted question with a
+  teal accent.
+- **Dock**: 44 px rounded-square buttons like the pre-join screen, red when mic/camera are off, teal when presenting,
+  amber when a hand is raised; rounded-2xl glass bar; Go live shows a loading state; teal indicator on the phone
+  panel nav.
+- **Panels**: shared `PanelEmpty` and `HostTag`; teal (not white "primary", which is near-white in the dark room)
+  for your own name, upvotes, open polls, leading option and spotlight; Q&A sort uses `Segmented`; 44 px vote and
+  member rows; settings dialog uses `SettingRow`.
+- **Changed behaviour (small):** an attendee's "Done" button on the ended screen now goes to `/my-events` instead of
+  `/`.
+- **Preview:** `/dev/ui/room?as=host|attendee&state=waiting|live|ended|removed&panel=chat|qna|polls|people&empty=1`
+  renders the real stage, dock, panels and chrome with labelled sample data and local fake actions (404 in
+  production). Checked at 1440×900 and 390×844: no console errors, no horizontal scroll.
+- **Not done:** a live Agora session test (host publish, screen share, attendee view, reconnect) still needs real
+  Agora and Supabase keys; it stays in the backlog below. The prototype files were not available in this session,
+  so this pass follows `docs/design-system.md` and the Phase 4 pre-join screen rather than a side-by-side comparison.
+  Layouts beyond the current two, whiteboard and guest speakers stay in §7.
+
 ## 15. Production readiness backlog (pending)
 
 | Item | Status |
