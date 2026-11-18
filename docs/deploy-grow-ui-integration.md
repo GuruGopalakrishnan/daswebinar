@@ -398,6 +398,32 @@ protocol, the API routes and the lifecycle / shortcut / auto-hide logic in `room
   audio, reconnect after a network drop, chat / Q&A / polls / hands / reactions across two or more browsers, local
   recording save, end-for-everyone, iOS Safari and Android Chrome.
 
+### Phase 6 (2026-11-18): billing, recordings, account settings
+Preceded by the Next.js 16.4.3 → 16.4.6 security upgrade (`31b7f46`; GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8).
+Same pattern as Phase 3: pages load data exactly as before and render a presentational `*View`; dev previews render
+the same views with labelled sample props.
+- **Billing** (`components/billing/billing-view.tsx`, `upgrade-view.tsx`, `upgrade-dialog.tsx`): states active,
+  renewal off, payment retrying (`pending`, still Pro per `user_plan()`), free, free limit reached, upgraded. Checkout
+  still renders only when Razorpay is configured; `?checkout=1` still auto-opens the real `UpgradeButton`. No invoice
+  list (backlog 16): the page says Razorpay emails receipts. Razorpay code, APIs and the webhook are unchanged.
+- **Recordings** (`components/dashboard/local-recordings.tsx`, `recordings-header.tsx`, `player/replay-view.tsx`,
+  `player/video-player.tsx`): states the local recorder really has: loading, empty, storage unavailable (was shown as
+  empty), ready to save, saving, save failed (inline + Try again), saved, recovered after an interruption. Delete uses
+  an AlertDialog. **There is no cloud "processing" state** because cloud recording isn't built (backlog 20). The sharing
+  tip now asks for a direct MP4/WebM link, which is what the player accepts. IndexedDB store unchanged.
+- **Account settings** (`/dashboard/settings/profile`, `components/settings/profile-settings.tsx`): display name, sign-in
+  email (read-only, change not built), password reset by email (existing `requestPasswordReset`), sign out (existing
+  `signOut`), plan link. Linked from the sidebar and account menu; `/settings`, `/settings/profile` aliases.
+  **One new server action**, `updateProfile` (`app/dashboard/settings/actions.ts`): zod-validated name written to the
+  account metadata and `profiles.full_name` through the existing owner-update RLS policy. No schema change.
+  **Not yet tested against a real Supabase project.**
+- **Previews:** `/dev/ui/billing`, `/dev/ui/recordings`, `/dev/ui/replay`, `/dev/ui/settings` (404 in production).
+  No payment, save, email or sign-out is simulated against real services; fakes are local and labelled.
+- **Checked:** tsc, lint (0 warnings), `test:db` 42/42, `test:staging-guard` 33/33, `npm audit --omit=dev` 0,
+  `next build`, 28 existing route status codes unchanged on the production build, 33 preview screens at 1440×900 and
+  390×844 with no console errors (except the replay sample's intentionally missing video) and no horizontal scroll.
+  `test:e2e` not run (needs a real Supabase project).
+
 ## 15. Production readiness backlog (pending)
 
 | Item | Status |
@@ -405,7 +431,8 @@ protocol, the API routes and the lifecycle / shortcut / auto-hide logic in `room
 | Real Supabase authentication and email verification testing (sign-up, confirm, sign-in, magic link, reset, resend) | Pending: needs configured Supabase credentials |
 | Slug migration on staging, then production (steps above) | Pending: owner approval |
 | Real attendee flow on Supabase: guest registration, approval, emailed join link, revoked link, capacity limit, `/e/<slug>`, My events | Pending: database rules verified on PGlite only |
-| Razorpay test-mode checkout (subscribe, verify, webhook, cancel) | Pending |
+| Razorpay test-mode checkout (subscribe, verify, webhook, cancel) on the Phase 6 billing UI | Pending |
+| Account settings `updateProfile` on real Supabase (name shows on event pages, emails, room) | Pending |
 | Agora live webinar verification (host publish, screen share, attendee view, reconnect) on the Phase 5 room UI, on real devices | **Pending. Blocks production deployment of the room** |
 | Real mobile-device testing (iOS Safari, Android Chrome) | Pending: only headless Chromium-based checks so far |
 | Terms, Privacy and Contact pages | Pending: need real legal text and a support address from the owner |

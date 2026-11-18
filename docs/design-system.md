@@ -90,6 +90,9 @@ Import each scene from its own file (no barrel), so client components don't pull
 | `CopyButton` | `src/components/copy-button.tsx` | Copy a link with toast feedback |
 | `Dock`, `MobilePanelNav` | `src/components/room/dock.tsx` | Room controls; panels move to a labeled bottom nav under 640 px |
 | `RoomTopBar`, `RoomDrawer`, `RoomOverlay`, `PanelEmpty`, `HostTag` | `src/components/room/room-chrome.tsx` | Live-room chrome and panel helpers. In the dark room use `teal` for emphasis (`primary` is near-white there). Preview: `/dev/ui/room` |
+| `BillingView`, `UpgradeView` | `src/components/billing/` | Plan & billing and /upgrade. Preview: `/dev/ui/billing` |
+| `RecordingsList`, `ReplayView` | `src/components/dashboard/local-recordings.tsx`, `src/components/player/replay-view.tsx` | Local recordings with every real state; replay page. Previews: `/dev/ui/recordings`, `/dev/ui/replay` |
+| `ProfileSettings` | `src/components/settings/profile-settings.tsx` | Account settings; actions passed as props. Preview: `/dev/ui/settings` |
 | `MobileRegisterBar` | `src/components/register/mobile-register-bar.tsx` | Sticky "Save my seat" until the visitor reaches or uses the form |
 
 ## States every screen needs
