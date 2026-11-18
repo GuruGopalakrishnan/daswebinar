@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       { source: "/billing/checkout", destination: "/upgrade", permanent: false },
       // Exact path only: /recordings/:id is the replay player and stays as it is.
       { source: "/recordings", destination: "/dashboard/recordings", permanent: false },
+      { source: "/settings", destination: "/dashboard/settings/profile", permanent: false },
+      { source: "/settings/profile", destination: "/dashboard/settings/profile", permanent: false },
     ];
   },
 };

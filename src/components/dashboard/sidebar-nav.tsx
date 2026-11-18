@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, HardDriveDownload, LayoutGrid, Plus, type LucideIcon } from "lucide-react";
+import { CreditCard, HardDriveDownload, LayoutGrid, Plus, UserRound, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; isActive: (path: string) => boolean };
@@ -23,7 +23,10 @@ export const DASHBOARD_NAV: { label?: string; items: NavItem[] }[] = [
   },
   {
     label: "Account",
-    items: [{ href: "/dashboard/billing", label: "Plan & billing", icon: CreditCard, isActive: (p) => p === "/dashboard/billing" }],
+    items: [
+      { href: "/dashboard/billing", label: "Plan & billing", icon: CreditCard, isActive: (p) => p === "/dashboard/billing" },
+      { href: "/dashboard/settings/profile", label: "Account settings", icon: UserRound, isActive: (p) => p.startsWith("/dashboard/settings") },
+    ],
   },
 ];
 
