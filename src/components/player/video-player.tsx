@@ -134,7 +134,7 @@ export function VideoPlayer({ src, title, resumeKey }: { src: string; title: str
       onMouseMove={poke}
       onMouseLeave={() => playing && setShowControls(false)}
       className={cn(
-        "group relative aspect-video w-full overflow-hidden rounded-2xl bg-black outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group relative aspect-video w-full overflow-hidden rounded-xl bg-stage shadow-card outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         !showControls && playing && "cursor-none",
       )}
       aria-label={`Video player: ${title}. Space to play or pause, J and L to skip 10 seconds, F for fullscreen.`}
@@ -184,10 +184,14 @@ export function VideoPlayer({ src, title, resumeKey }: { src: string; title: str
       {/* Center states */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         {error ? (
-          <div className="flex flex-col items-center gap-2 text-center text-white">
-            <AlertTriangle className="size-8 text-warning" />
-            <p className="font-medium">This video can&apos;t be played</p>
-            <p className="text-sm text-white/60">The file may have moved or isn&apos;t a supported format.</p>
+          <div role="alert" className="flex max-w-sm flex-col items-center gap-2 px-6 text-center text-white">
+            <span className="mb-1 flex size-12 items-center justify-center rounded-xl bg-white/10">
+              <AlertTriangle className="size-6 text-warning" />
+            </span>
+            <p className="font-semibold">This video can&apos;t be played</p>
+            <p className="text-sm text-pretty text-white/65">
+              The file may have moved or isn&apos;t a supported format. Ask the host to check the replay link.
+            </p>
           </div>
         ) : waiting && playing ? (
           <Loader2 className="size-10 animate-spin text-white/80" />
@@ -234,7 +238,7 @@ export function VideoPlayer({ src, title, resumeKey }: { src: string; title: str
         >
           <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/25 transition-[height] group-hover/seek:h-1.5">
             <div className="absolute inset-y-0 left-0 bg-white/35" style={{ width: `${duration ? (buffered / duration) * 100 : 0}%` }} />
-            <div className="absolute inset-y-0 left-0 bg-primary" style={{ width: `${progress}%` }} />
+            <div className="absolute inset-y-0 left-0 bg-teal" style={{ width: `${progress}%` }} />
           </div>
           <div
             className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 scale-0 rounded-full bg-white shadow transition-transform group-hover/seek:scale-100"
