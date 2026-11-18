@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { Ticks } from "@/components/blocks/lists";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,25 +44,19 @@ export function UpgradeDialog({
     <Dialog open={reason !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <span className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <span aria-hidden className="mb-2 flex size-11 items-center justify-center rounded-xl bg-teal-subtle text-teal">
             <Sparkles className="size-5" />
           </span>
-          <DialogTitle className="font-display text-2xl font-normal">{copy?.title}</DialogTitle>
+          <DialogTitle className="t-h3">{copy?.title}</DialogTitle>
           <DialogDescription>{copy?.body}</DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-xl border bg-muted/40 p-4">
-          <p className="flex items-baseline gap-1">
-            <span className="font-display text-3xl">{formatInr(PRO_PRICE_INR)}</span>
+        <div className="rounded-xl border bg-surface-2 p-4">
+          <p className="flex items-baseline gap-1.5">
+            <span className="text-[28px] leading-9 font-semibold tracking-[-0.025em] tabular-nums">{formatInr(PRO_PRICE_INR)}</span>
             <span className="text-sm text-muted-foreground">/ month · cancel any time</span>
           </p>
-          <ul className="mt-3 grid gap-1.5 text-sm">
-            {PLANS.pro.features.map((f) => (
-              <li key={f} className="flex gap-2">
-                <Check className="mt-0.5 size-4 shrink-0 text-primary" /> {f}
-              </li>
-            ))}
-          </ul>
+          <Ticks className="mt-3" items={[...PLANS.pro.features]} />
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
