@@ -388,6 +388,16 @@ protocol, the API routes and the lifecycle / shortcut / auto-hide logic in `room
   so this pass follows `docs/design-system.md` and the Phase 4 pre-join screen rather than a side-by-side comparison.
   Layouts beyond the current two, whiteboard and guest speakers stay in §7.
 
+#### Phase 5 verification (2026-11-18, after the Next.js 16.4.6 upgrade)
+- Hooks and backend unchanged since before Phase 5: `git diff d0d44e5 -- src/components/room/use-*.ts src/lib/realtime
+  src/lib/agora src/lib/supabase src/app/api supabase` is empty.
+- `/dev/ui/room` (host and attendee; waiting, live, ended, removed; every panel; empty panels) and `/dev/ui/prejoin`
+  render at 1440×900 and 390×844 with no console errors and no horizontal scroll.
+- **Status: UI restyle done; live-session testing PENDING.** The room is **not production-ready** until a real
+  Agora + Supabase session passes on real devices: host publish, mic/camera toggles, screen share, attendee video and
+  audio, reconnect after a network drop, chat / Q&A / polls / hands / reactions across two or more browsers, local
+  recording save, end-for-everyone, iOS Safari and Android Chrome.
+
 ## 15. Production readiness backlog (pending)
 
 | Item | Status |
@@ -396,7 +406,7 @@ protocol, the API routes and the lifecycle / shortcut / auto-hide logic in `room
 | Slug migration on staging, then production (steps above) | Pending: owner approval |
 | Real attendee flow on Supabase: guest registration, approval, emailed join link, revoked link, capacity limit, `/e/<slug>`, My events | Pending: database rules verified on PGlite only |
 | Razorpay test-mode checkout (subscribe, verify, webhook, cancel) | Pending |
-| Agora live webinar verification (host publish, screen share, attendee view, reconnect) | Pending |
+| Agora live webinar verification (host publish, screen share, attendee view, reconnect) on the Phase 5 room UI, on real devices | **Pending. Blocks production deployment of the room** |
 | Real mobile-device testing (iOS Safari, Android Chrome) | Pending: only headless Chromium-based checks so far |
 | Terms, Privacy and Contact pages | Pending: need real legal text and a support address from the owner |
 | Bot protection (Turnstile on register, login, sign-up; then Supabase CAPTCHA) | Pending |
